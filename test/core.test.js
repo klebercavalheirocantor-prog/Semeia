@@ -1020,3 +1020,26 @@ test('anúncio clique-para-WhatsApp: lead com origem, etiqueta e nota do anúnci
   delete c.getChats;
   await call('admin', 'PATCH', `/api/flows/${flow.id}`, { active: false });
 });
+
+test('mudança para a nuvem: o PC entrega banco e arquivos; a nuvem só recebe com o código certo', async () => {
+  const head = { 'x-crm': '1', cookie: jar.admin };
+  const r = await realFetch(base + '/api/admin/export/db', { headers: head });
+  assert.equal(r.status, 200);
+  const dbBuf = Buffer.from(await r.arrayBuffer());
+  assert.equal(dbBuf.subarray(0, 15).toString(), 'SQLite format 3');
+  assert.ok(Array.isArray(await (await realFetch(base + '/api/admin/export/uploads', { headers: head })).json()));
+  assert.equal((await realFetch(base + '/api/admin/export/db')).status, 401); // sem login
+  // recebimento desligado sem RESTORE_TOKEN, e recusa código errado
+  assert.equal((await realFetch(base + '/restore/upload/a.png', { method: 'POST', body: 'x' })).status, 403);
+  process.env.RESTORE_TOKEN = 'codigo-de-teste-1234567890';
+  assert.equal((await realFetch(base + '/restore/upload/a.png', { method: 'POST', headers: { 'x-restore-token': 'errado-errado-errado-errado' }, body: 'x' })).status, 403);
+  const ok = { 'x-restore-token': 'codigo-de-teste-1234567890' };
+  assert.equal((await realFetch(base + '/restore/upload/..%2F..%2Fx.js', { method: 'POST', headers: ok, body: 'x' })).status, 400);
+  assert.equal((await realFetch(base + '/restore/upload/foto-1.png', { method: 'POST', headers: ok, body: 'png' })).status, 200);
+  assert.equal(fs.readFileSync(path.join(process.env.DATA_DIR, 'uploads', 'foto-1.png'), 'utf8'), 'png');
+  assert.equal((await realFetch(base + '/restore/db', { method: 'POST', headers: ok, body: 'não é banco' })).status, 400);
+  assert.equal((await realFetch(base + '/restore/db', { method: 'POST', headers: ok, body: dbBuf })).status, 200);
+  assert.ok(fs.existsSync(path.join(process.env.DATA_DIR, 'crm.db.restore')));
+  fs.rmSync(path.join(process.env.DATA_DIR, 'crm.db.restore'));
+  delete process.env.RESTORE_TOKEN;
+});

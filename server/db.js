@@ -6,7 +6,16 @@ export const DATA_DIR = path.resolve(process.env.DATA_DIR || 'data');
 export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-export const db = new DatabaseSync(path.join(DATA_DIR, 'crm.db'));
+// Mudança de servidor: um banco trazido do outro computador (crm.db.restore) entra no lugar antes de abrir.
+const DB_FILE = path.join(DATA_DIR, 'crm.db');
+if (fs.existsSync(`${DB_FILE}.restore`)) {
+  if (fs.existsSync(DB_FILE)) fs.renameSync(DB_FILE, `${DB_FILE}.antes-${Date.now()}`);
+  for (const x of ['-wal', '-shm']) fs.rmSync(DB_FILE + x, { force: true });
+  fs.renameSync(`${DB_FILE}.restore`, DB_FILE);
+  console.log('Banco trazido do outro computador colocado no lugar.');
+}
+
+export const db = new DatabaseSync(DB_FILE);
 db.exec('pragma journal_mode = wal; pragma foreign_keys = on; pragma busy_timeout = 5000;');
 
 export const now = () => Date.now();

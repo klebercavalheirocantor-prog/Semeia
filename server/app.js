@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { one, all, run, now, tx, getSetting, setSetting, createPipeline, UPLOAD_DIR } from './db.js';
 import { hashPassword, checkPassword, createSession, cookieFor, loadUser, scope, can } from './auth.js';
+import { mountMigrate } from './migrate.js';
 import { subscribe, emit } from './bus.js';
 import { httpError, logEvent, setTags, getTags, setFields, getFields, setPoints, createContact, createLead, firstStage, openLeadOf, brandKey, firstPipelineOf, setOptOut } from './crm.js';
 import { verifySignature, parseWebhook, sendMessage, testChannel, saveFile, listTemplates, createTemplate, renderTemplate, templateVars, templateSupported, templateHeaderMedia } from './meta.js';
@@ -113,6 +114,8 @@ app.use('/api', (req, res, next) => {
   next();
 });
 const admin = (req) => { if (!req.user.is_admin) throw httpError(403, 'Só administradores'); };
+// Mudança do PC para a nuvem (envio do banco e dos arquivos; recebimento com RESTORE_TOKEN).
+mountMigrate(app, { requireAdmin: (req, res, next) => { admin(req); next(); } });
 
 app.post('/api/logout', (req, res) => {
   run('delete from sessions where token = ?', req.user.token);
