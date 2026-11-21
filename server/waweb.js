@@ -33,8 +33,10 @@ async function loadLib() {
 }
 
 // Sessão marcada para apagar (deslogou com o Chrome aberto): apaga agora, com o Chrome ainda fechado.
-function cleanStale(channelId) {
+export function cleanStale(channelId) {
   const dir = path.join(DATA_DIR, 'whatsapp-web', `session-canal${channelId}`);
+  // Trava do Chrome deixada por um servidor anterior (na nuvem, cada reinício é outra máquina): sem apagar, o Chrome não abre.
+  for (const f of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) { try { fs.rmSync(path.join(dir, f), { force: true }); } catch {} }
   if (!fs.existsSync(`${dir}.limpar`)) return;
   try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 }); fs.rmSync(`${dir}.limpar`, { force: true }); }
   catch (e) { console.error('whatsapp web: não deu para apagar a sessão antiga', e.message); }

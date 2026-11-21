@@ -1043,3 +1043,14 @@ test('mudança para a nuvem: o PC entrega banco e arquivos; a nuvem só recebe c
   fs.rmSync(path.join(process.env.DATA_DIR, 'crm.db.restore'));
   delete process.env.RESTORE_TOKEN;
 });
+
+test('WhatsApp Web: trava do Chrome de outro servidor é apagada antes de abrir', async () => {
+  const { cleanStale } = await import('../server/waweb.js');
+  const dir = path.join(process.env.DATA_DIR, 'whatsapp-web', 'session-canal77');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.symlinkSync('outra-maquina-123', path.join(dir, 'SingletonLock'));
+  fs.writeFileSync(path.join(dir, 'Preferences'), '{}');
+  cleanStale(77);
+  assert.ok(!fs.readdirSync(dir).includes('SingletonLock'));
+  assert.ok(fs.existsSync(path.join(dir, 'Preferences'))); // a sessão (login) continua
+});
