@@ -113,6 +113,8 @@ export async function startWeb(channel) {
     const me = client.info?.wid?.user || null;
     set({ state: 'ready', qr: null, me, error: null, wasReady: true });
     failures.delete(channel.id); everReady.add(channel.id);
+    // Conectou: a sessão desta pasta é boa. Marca de "apagar" antiga não pode apagar o login novo no próximo reinício.
+    fs.rmSync(path.join(DATA_DIR, 'whatsapp-web', `session-canal${channel.id}.limpar`), { force: true });
     const cfg = JSON.parse(one('select config from channels where id = ?', channel.id).config);
     run("update channels set config = ?, status = case when status = 'error' then 'active' else status end where id = ?", JSON.stringify({ ...cfg, me }), channel.id);
     emit('config');
@@ -148,7 +150,11 @@ export async function stopWeb(channelId, { logout = false } = {}) {
   try { await s.client.destroy(); } catch {}
   sessions.delete(channelId);
   // Desconectar = começar do zero: com a página travada o logout da biblioteca não apaga a sessão, então apaga aqui (Chrome já fechado).
-  if (logout) { try { fs.rmSync(path.join(DATA_DIR, 'whatsapp-web', `session-canal${channelId}`), { recursive: true, force: true, maxRetries: 5 }); } catch (e) { console.error('whatsapp web: não deu para apagar a sessão', e.message); } }
+  if (logout) {
+    const dir = path.join(DATA_DIR, 'whatsapp-web', `session-canal${channelId}`);
+    try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 }); fs.rmSync(`${dir}.limpar`, { force: true }); }
+    catch (e) { console.error('whatsapp web: não deu para apagar a sessão', e.message); }
+  }
   emit('waweb', { channel_id: channelId });
 }
 

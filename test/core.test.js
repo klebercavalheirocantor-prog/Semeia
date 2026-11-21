@@ -1083,3 +1083,16 @@ test('WhatsApp Web: ao desligar o CRM fecha o Chrome com calma; travou ao abrir 
   waFake.client.constructor.prototype.initialize = realInit;
   await stopAllWeb();
 });
+
+test('WhatsApp Web: marca de "apagar" antiga não apaga o login novo depois de conectar', async () => {
+  const { stopAllWeb, cleanStale } = await import('../server/waweb.js');
+  const ch = one("select id from channels where kind = 'whatsapp' and config like '%\"mode\":\"web\"%'");
+  const dir = path.join(process.env.DATA_DIR, 'whatsapp-web', `session-canal${ch.id}`);
+  await call('admin', 'POST', '/api/waweb');
+  fs.mkdirSync(path.join(dir, 'Default'), { recursive: true });
+  fs.writeFileSync(`${dir}.limpar`, 'antiga'); // sobrou de um desconectar que falhou
+  waFake.client.emit('ready'); // leu o QR: login novo
+  await stopAllWeb();
+  cleanStale(ch.id); // próximo reinício
+  assert.ok(fs.existsSync(path.join(dir, 'Default')));
+});

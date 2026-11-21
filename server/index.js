@@ -35,6 +35,7 @@ for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, async () => {
   console.log('Desligando: fechando o WhatsApp com calma...');
   setTimeout(() => process.exit(0), 12000).unref();
   await stopAllWeb().catch(() => {});
+  console.log('WhatsApp fechado, sessão gravada.');
   process.exit(0);
 });
 
