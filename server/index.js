@@ -8,6 +8,7 @@ import { tickCampaigns } from './campaigns.js';
 import { tickFlows, initFlows } from './flows.js';
 import { bootWeb, stopAllWeb } from './waweb.js';
 import { tickMailboxes } from './mailbox.js';
+import { becomeOwner, releaseOwner } from './owner.js';
 
 // Recuperar acesso: node server/index.js senha email@exemplo.com NovaSenha123
 if (process.argv[2] === 'senha') {
@@ -35,6 +36,7 @@ for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, async () => {
   console.log('Desligando: fechando o WhatsApp com calma...');
   setTimeout(() => process.exit(0), 12000).unref();
   await stopAllWeb().catch(() => {});
+  releaseOwner(); // o servidor novo (se houver) já pode abrir o WhatsApp
   console.log('WhatsApp fechado, sessão gravada.');
   process.exit(0);
 });
@@ -50,16 +52,20 @@ function backup() {
   for (const f of old) fs.rmSync(path.join(BACKUP_DIR, f));
   console.log('backup salvo:', file);
 }
-backup();
-setInterval(() => { try { backup(); } catch (e) { console.error('backup falhou', e); } }, 60 * 60e3);
-setInterval(() => run('delete from sessions where expires_at < ?', Date.now()), 6 * 60 * 60e3);
-// Campanhas: confere a cada 2 s se alguma tem mensagem para sair (o ritmo de cada uma é respeitado lá dentro).
-setInterval(() => tickCampaigns().catch((e) => console.error('campanhas', e)), 2000);
-// Fluxos: acorda quem estava esperando (follow-up, "sem resposta").
-initFlows();
-setInterval(() => tickFlows().catch((e) => console.error('fluxos', e)), 15000);
-// Caixa de e-mail: confere as respostas a cada minuto.
-setInterval(() => tickMailboxes().catch((e) => console.error('e-mail', e)), 60e3);
+// Trabalho de fundo (WhatsApp, campanhas, fluxos, e-mail, backup): só depois de ser o único Semeia ligado nesta pasta.
+function startJobs() {
+  backup();
+  setInterval(() => { try { backup(); } catch (e) { console.error('backup falhou', e); } }, 60 * 60e3);
+  setInterval(() => run('delete from sessions where expires_at < ?', Date.now()), 6 * 60 * 60e3);
+  // Campanhas: confere a cada 2 s se alguma tem mensagem para sair (o ritmo de cada uma é respeitado lá dentro).
+  setInterval(() => tickCampaigns().catch((e) => console.error('campanhas', e)), 2000);
+  // Fluxos: acorda quem estava esperando (follow-up, "sem resposta").
+  initFlows();
+  setInterval(() => tickFlows().catch((e) => console.error('fluxos', e)), 15000);
+  // Caixa de e-mail: confere as respostas a cada minuto.
+  setInterval(() => tickMailboxes().catch((e) => console.error('e-mail', e)), 60e3);
+  bootWeb(); // reconecta o WhatsApp Web que já leu o QR code
+}
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -70,5 +76,5 @@ app.listen(PORT, HOST, () => {
     for (const ip of ips) console.log(`Na rede da empresa: http://${ip}:${PORT}`);
   } else console.log('Só este computador acessa. Para a equipe na mesma rede, use HOST=0.0.0.0 no arquivo .env');
   if (!one('select 1 from users limit 1')) console.log('Primeiro acesso: abra o endereço acima e crie o administrador.');
-  bootWeb(); // reconecta o WhatsApp Web que já leu o QR code
+  becomeOwner().then(startJobs).catch((e) => console.error('não consegui assumir o trabalho de fundo', e));
 });
