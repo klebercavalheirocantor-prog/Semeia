@@ -58,12 +58,15 @@ export async function startWeb(channel) {
     sessions.set(channel.id, { state: 'error', qr: null, me: null, error: 'Falta instalar o componente do WhatsApp Web: feche o CRM e abra o iniciar.bat de novo (precisa de internet).' });
     return webStatus(channel.id);
   }
+  // Tentativa anterior travada (erro/desconectado): fecha o Chrome dela antes de abrir outro na mesma pasta.
+  if (cur?.client) { try { await cur.client.destroy(); } catch {} }
   const s = { state: 'starting', qr: null, me: null, error: null, client: null };
   sessions.set(channel.id, s);
   cleanStale(channel.id);
   const set = (p) => { Object.assign(s, p); emit('waweb', { channel_id: channel.id }); };
   const client = new L.Client({
     authStrategy: new L.LocalAuth({ clientId: `canal${channel.id}`, dataPath: path.join(DATA_DIR, 'whatsapp-web') }),
+    authTimeoutMs: 120000, // no servidor o WhatsApp pode levar mais de 30 s para abrir (o padrão de 30 s dava "Waiting failed")
     // Na nuvem usa o Chromium do servidor (CHROME_PATH); no PC, o Chrome que o whatsapp-web.js baixa.
     puppeteer: { headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'], ...(process.env.CHROME_PATH && { executablePath: process.env.CHROME_PATH }) },
   });
