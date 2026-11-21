@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
-import { one, all, run, now, tx, getSetting, setSetting, createPipeline, UPLOAD_DIR } from './db.js';
+import { one, all, run, now, tx, getSetting, setSetting, createPipeline, UPLOAD_DIR, DATA_DIR } from './db.js';
 import { hashPassword, checkPassword, createSession, cookieFor, loadUser, scope, can } from './auth.js';
 import { mountMigrate } from './migrate.js';
 import { subscribe, emit } from './bus.js';
@@ -12,7 +12,7 @@ import { handleWebhookItems } from './inbound.js';
 import { sendTemplateTo, sendEmail, contactFromUnsubToken, fillVars } from './outbound.js';
 import { audienceCount, campaignStats, startCampaign, pauseCampaign } from './campaigns.js';
 import { dashboard } from './dashboard.js';
-import { results } from './results.js';
+import { results, readInvestment } from './results.js';
 import { flowOnHuman, flowOnStage, validateGraph, simulate, portsOf } from './flows.js';
 import { claude, DEFAULT_MODEL } from './ai.js';
 import { isWeb, startWeb, stopWeb, webStatus } from './waweb.js';
@@ -1092,6 +1092,15 @@ app.get('/api/dashboard', (req, res) => res.json(dashboard({ days: Number(req.qu
 app.get('/api/results', (req, res) => {
   if (!req.user.is_admin && req.user.rights?.leads?.view !== 'all') throw httpError(403, 'Só quem vê todos os leads');
   res.json(results({ brandId: req.brand }));
+});
+// Investimento dos anúncios: a tarefa diária grava aqui (logada como administrador), em vez do arquivo no PC.
+app.get('/api/admin/investment', (req, res) => { admin(req); res.json(readInvestment() || {}); });
+app.put('/api/admin/investment', (req, res) => {
+  admin(req);
+  const d = req.body;
+  if (!d || typeof d !== 'object' || Array.isArray(d) || typeof d.canais !== 'object') throw httpError(400, 'Formato inválido: precisa do campo "canais"');
+  fs.writeFileSync(path.join(DATA_DIR, 'investimento.json'), JSON.stringify(d, null, 2));
+  res.json({ ok: true, updated_at: d.updated_at || null });
 });
 
 // ---------- campanhas

@@ -58,3 +58,11 @@ test('resultado sem arquivo de investimento: ainda responde, com investido zero'
   assert.equal(r.total.investido, 0);
   assert.equal(r.total.roi, null);
 });
+
+test('investimento gravado pela tarefa diária na nuvem (rota de administrador)', async () => {
+  assert.equal((await call('PUT', '/api/admin/investment', { sem: 'canais' })).status, 400);
+  const inv = { updated_at: '2026-11-21T23:00:00Z', cambio: 5.4, canais: { 'Anúncio Facebook Brasil': { brl: 250 } }, campanhas: [] };
+  assert.equal((await call('PUT', '/api/admin/investment', inv)).status, 200);
+  assert.deepEqual((await call('GET', '/api/admin/investment')).body, inv);
+  assert.equal((await call('GET', '/api/results')).body.total.investido, 25000);
+});
