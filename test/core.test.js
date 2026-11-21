@@ -1064,3 +1064,22 @@ test('WhatsApp Web: desconectar apaga a sessão guardada mesmo com a página tra
   assert.equal((await call('admin', 'POST', `/api/waweb/${ch.id}/logout`)).status, 200);
   assert.ok(!fs.existsSync(dir));
 });
+
+test('WhatsApp Web: ao desligar o CRM fecha o Chrome com calma; travou ao abrir = tenta de novo sozinho', async () => {
+  const { stopAllWeb, webStatus } = await import('../server/waweb.js');
+  const ch = one("select id from channels where kind = 'whatsapp' and config like '%\"mode\":\"web\"%'");
+  await call('admin', 'POST', '/api/waweb');
+  let destroyed = 0;
+  waFake.client.destroy = async () => { destroyed++; };
+  await stopAllWeb();
+  assert.equal(destroyed, 1);
+  assert.equal(webStatus(ch.id).state, 'off');
+  // abrir falha (página do WhatsApp não carregou): fica em erro com o motivo, e não derruba nada
+  const realInit = waFake.client.constructor.prototype.initialize;
+  waFake.client.constructor.prototype.initialize = async () => { throw new Error('Waiting failed: 120000ms exceeded'); };
+  await call('admin', 'POST', '/api/waweb');
+  await settle();
+  assert.equal(webStatus(ch.id).state, 'error');
+  waFake.client.constructor.prototype.initialize = realInit;
+  await stopAllWeb();
+});

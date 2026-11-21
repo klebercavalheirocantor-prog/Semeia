@@ -42,6 +42,40 @@ export function cleanStale(channelId) {
   catch (e) { console.error('whatsapp web: não deu para apagar a sessão antiga', e.message); }
 }
 
+// Se cair ou travar ao abrir, tenta de novo sozinho (1, 2 e 3 min). Na 4ª falha seguida a sessão guardada está
+// estragada: apaga, gera QR novo e avisa o administrador por e-mail.
+const failures = new Map(); // channelId -> falhas seguidas
+const everReady = new Set(); // canais que já conectaram desde que o CRM abriu
+let lastAlert = 0;
+async function alertAdmin(text) {
+  if (Date.now() - lastAlert < 3 * 3600e3) return; // no máximo um aviso a cada 3 h
+  lastAlert = Date.now();
+  try {
+    const to = one('select email from users where is_admin = 1 and is_active = 1 order by id limit 1')?.email;
+    const base = (getSetting('general', {}).public_url || '').replace(/\/$/, '');
+    if (!to) return;
+    const { sendEmail } = await import('./outbound.js');
+    await sendEmail({ to, subject: 'Semeia: o WhatsApp precisa ser conectado de novo', unsubscribe: false,
+      text: `${text}\n\nAbra ${base || 'o Semeia'} › Ajustes › Canais e leia o QR code com o celular (WhatsApp › Aparelhos conectados).` });
+  } catch (e) { console.error('whatsapp web: aviso por e-mail não saiu', e.message); }
+}
+function retryLater(channel, why) {
+  const n = (failures.get(channel.id) || 0) + 1;
+  failures.set(channel.id, n);
+  if (n > 3) {
+    failures.delete(channel.id);
+    console.error(`whatsapp web: ${why}; 4 falhas seguidas, apago a sessão e gero QR novo`);
+    stopWeb(channel.id, { logout: true }).then(() => startWeb(channel)).catch((e) => console.error('whatsapp web', e.message));
+    alertAdmin('O WhatsApp do Semeia não conseguiu reconectar sozinho e pede um QR code novo.');
+    return;
+  }
+  console.error(`whatsapp web: ${why}; tento de novo em ${n} min`);
+  setTimeout(() => {
+    const cur = sessions.get(channel.id);
+    if (cur && ['error', 'off'].includes(cur.state)) startWeb(channel).catch((e) => console.error('whatsapp web', e.message));
+  }, n * 60e3).unref();
+}
+
 export const isWeb = (channel) => { try { return JSON.parse(channel.config).mode === 'web'; } catch { return false; } };
 export function webStatus(channelId) {
   const s = sessions.get(channelId);
@@ -71,10 +105,14 @@ export async function startWeb(channel) {
     puppeteer: { headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'], ...(process.env.CHROME_PATH && { executablePath: process.env.CHROME_PATH }) },
   });
   s.client = client;
-  client.on('qr', async (qr) => set({ state: 'qr', qr: await L.toDataURL(qr) }));
+  client.on('qr', async (qr) => {
+    set({ state: 'qr', qr: await L.toDataURL(qr) });
+    if (everReady.has(channel.id)) { everReady.delete(channel.id); alertAdmin('O WhatsApp do Semeia foi desconectado pelo celular.'); }
+  });
   client.on('ready', () => {
     const me = client.info?.wid?.user || null;
     set({ state: 'ready', qr: null, me, error: null, wasReady: true });
+    failures.delete(channel.id); everReady.add(channel.id);
     const cfg = JSON.parse(one('select config from channels where id = ?', channel.id).config);
     run("update channels set config = ?, status = case when status = 'error' then 'active' else status end where id = ?", JSON.stringify({ ...cfg, me }), channel.id);
     emit('config');
@@ -82,9 +120,12 @@ export async function startWeb(channel) {
   });
   client.on('auth_failure', (m) => set({ state: 'error', error: `Não conseguiu entrar: ${m}` }));
   // LOGOUT: o celular desconectou (ou a sessão guardada era velha). A biblioteca já gera um QR novo sozinha.
-  client.on('disconnected', (reason) => set(reason === 'LOGOUT'
-    ? { state: 'starting', qr: null, error: null }
-    : { state: 'off', qr: null, error: reason ? `Desconectado (${reason})` : 'Desconectado' }));
+  client.on('disconnected', (reason) => {
+    if (sessions.get(channel.id) !== s) return; // tentativa antiga, já substituída
+    if (reason === 'LOGOUT') return set({ state: 'starting', qr: null, error: null });
+    set({ state: 'off', qr: null, error: reason ? `Desconectado (${reason})` : 'Desconectado' });
+    retryLater(channel, `caiu (${reason || 'sem motivo'})`);
+  });
   client.on('message', (msg) => onIncoming(channel.id, msg).catch((e) => console.error('whatsapp web: mensagem', e)));
   // Mensagens que você manda pelo celular: aparecem no CRM e fazem o robô sair da conversa.
   client.on('message_create', (msg) => { if (msg.fromMe) setTimeout(() => onOwn(channel.id, msg).catch((e) => console.error('whatsapp web: eco', e)), echoDelay); });
@@ -92,7 +133,11 @@ export async function startWeb(channel) {
     const status = ack === -1 ? 'failed' : { 1: 'sent', 2: 'delivered', 3: 'read', 4: 'read' }[ack];
     if (status) handleStatus({ external_id: msg.id?._serialized, status, error: null });
   });
-  client.initialize().catch((e) => set({ state: 'error', error: e.message }));
+  client.initialize().catch((e) => {
+    if (sessions.get(channel.id) !== s) return;
+    set({ state: 'error', error: e.message });
+    retryLater(channel, `não abriu (${e.message})`);
+  });
   return webStatus(channel.id);
 }
 
@@ -105,6 +150,12 @@ export async function stopWeb(channelId, { logout = false } = {}) {
   // Desconectar = começar do zero: com a página travada o logout da biblioteca não apaga a sessão, então apaga aqui (Chrome já fechado).
   if (logout) { try { fs.rmSync(path.join(DATA_DIR, 'whatsapp-web', `session-canal${channelId}`), { recursive: true, force: true, maxRetries: 5 }); } catch (e) { console.error('whatsapp web: não deu para apagar a sessão', e.message); } }
   emit('waweb', { channel_id: channelId });
+}
+
+// Desligar com calma: fecha o Chrome de cada canal para a sessão ficar gravada inteira.
+// Matar o Chrome no meio (reinício do servidor, fechar a janela do CRM) estragava a sessão e o WhatsApp não voltava.
+export async function stopAllWeb() {
+  await Promise.all([...sessions.keys()].map((id) => stopWeb(id).catch(() => {})));
 }
 
 // Liga sozinho, ao abrir o CRM, os canais que já leram o QR code.

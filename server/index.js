@@ -6,7 +6,7 @@ import { hashPassword } from './auth.js';
 import { app } from './app.js';
 import { tickCampaigns } from './campaigns.js';
 import { tickFlows, initFlows } from './flows.js';
-import { bootWeb } from './waweb.js';
+import { bootWeb, stopAllWeb } from './waweb.js';
 import { tickMailboxes } from './mailbox.js';
 
 // Recuperar acesso: node server/index.js senha email@exemplo.com NovaSenha123
@@ -25,6 +25,17 @@ process.on('uncaughtException', (e) => {
   console.error('erro inesperado:', e?.stack || e);
   // CRM já aberto em outra janela: esta cópia sai, para não disparar campanha em dobro.
   if (e?.code === 'EADDRINUSE') { console.error('O CRM já está aberto em outra janela.'); process.exit(1); }
+});
+
+// Pedido para desligar (reinício do servidor, Ctrl+C, fechar a janela no Windows): fecha o WhatsApp com calma antes de sair.
+let closing = false;
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, async () => {
+  if (closing) return;
+  closing = true;
+  console.log('Desligando: fechando o WhatsApp com calma...');
+  setTimeout(() => process.exit(0), 12000).unref();
+  await stopAllWeb().catch(() => {});
+  process.exit(0);
 });
 
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
