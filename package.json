@@ -1,0 +1,22 @@
+{
+  "name": "meu-crm",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "senha": "node --env-file-if-exists=.env server/index.js senha",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "htm": "^3.1.1",
+    "preact": "^11.0.1",
+    "whatsapp-web.js": "^1.26.0",
+    "qrcode": "^1.5.4",
+    "imapflow": "^1.0.0",
+    "mailparser": "^3.7.0"
+  }
+}
