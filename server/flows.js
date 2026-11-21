@@ -269,6 +269,18 @@ async function resume(r, first) {
 }
 
 // ---------- gatilhos
+// Resposta à campanha que não é conversa de verdade: mensagem automática do WhatsApp Business ("agradecemos seu contato,
+// em breve retornaremos") ou só um "ok"/"obrigado"/👍. Aí o robô não pergunta nada e espera a próxima mensagem da pessoa.
+const AUTO_REPLY = /mensagem autom[aá]tica|resposta autom[aá]tica|agradece(mos)? (o |pelo |pela |seu |sua )*(contato|mensagem)|obrigad[oa] por (entrar em |seu |sua |pelo |pela |nos )*(contato|mensagem)|em breve (retorna|responde|entra|daremos)|retornaremos|responderemos|no momento,? n[aã]o (podemos|estamos|consigo|posso)|hor[aá]rio de atendimento|fora do (nosso )?hor[aá]rio|estou ausente|ausente no momento|seja bem[- ]?vind[oa]|como (podemos|posso) (te |lhe )?ajudar|digite (o n[uú]mero|uma op|\d)|escolha uma (das )?op[cç]/i;
+const ACK = /^(ok+|okay|okey|oki|blz|beleza|certo|ta|ta bom|obrigad[oa]|obg|brigad[oa]|grat[oa]|valeu|vlw|recebido|show|top|joia)( (ok+|obrigad[oa]|obg|blz|beleza|valeu|vlw|bom|certo))*$/;
+export function notARealReply(text) {
+  const t = String(text || '').trim();
+  if (!t) return false; // foto ou áudio: pode ser a foto do monitor
+  if (AUTO_REPLY.test(t)) return true;
+  const n = t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  return !n || ACK.test(n); // só emoji (👍 🙏) ou só um "ok"
+}
+
 // Chamado depois de gravar a mensagem do cliente.
 export function flowOnInbound({ conversationId, text, campaignId = null, newConversation = false, optout = false, fromAd = false }) {
   return serial(conversationId, async () => {
@@ -295,6 +307,7 @@ export function flowOnInbound({ conversationId, text, campaignId = null, newConv
       for (const { id } of all('select id from flows where active = 1 and trigger = ? and brand_id = ? order by id', trigger, conv.brand_id)) {
         const flow = loadFlow(id);
         if (trigger === 'campaign_reply' && flow.trigger_config.campaign_id && Number(flow.trigger_config.campaign_id) !== campaignId) continue;
+        if (trigger === 'campaign_reply' && notARealReply(text)) break; // espera a pessoa escrever de verdade
         if (flow.trigger_config.channel && flow.trigger_config.channel !== conv.channel_kind) continue;
         return startRun(flow, conv, { last_reply: text, campaign_id: campaignId });
       }

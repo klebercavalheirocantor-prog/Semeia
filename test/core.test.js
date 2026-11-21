@@ -485,7 +485,15 @@ test('fluxo: resposta à campanha recebe pergunta com botões, IA responde e pas
   await flush();
   assert.equal(sent.length, n);
 
-  // Paulo responde e toca em Trimble -> mensagem fixa + etiqueta; fluxo termina
+  // Paulo: 1º chega a mensagem automática do WhatsApp Business dele e depois um "Ok 👍" -> o robô fica quieto
+  let quiet = sent.length;
+  await webhook(waMsg('wamid.f5a', '556798881002', 'Olá! Agradecemos seu contato. No momento não podemos responder, em breve retornaremos.', 'Paulo'));
+  await flush();
+  await webhook(waMsg('wamid.f5b', '556798881002', 'Ok 👍', 'Paulo'));
+  await flush();
+  assert.equal(sent.length, quiet);
+  assert.equal(one("select count(*) n from flow_runs f join conversations c on c.id = f.conversation_id join contact_points p on p.contact_id = c.contact_id where p.value_norm = '5567998881002'").n, 0);
+  // Paulo escreve de verdade -> agora sim o robô começa; depois toca em Trimble -> mensagem fixa + etiqueta; fluxo termina
   await webhook(waMsg('wamid.f5', '556798881002', 'Oi', 'Paulo'));
   await flush();
   await webhook(waMsg('wamid.f6', '556798881002', 'trimble', 'Paulo'));
@@ -1053,6 +1061,14 @@ test('WhatsApp Web: trava do Chrome de outro servidor é apagada antes de abrir'
   cleanStale(77);
   assert.ok(!fs.readdirSync(dir).includes('SingletonLock'));
   assert.ok(fs.existsSync(path.join(dir, 'Preferences'))); // a sessão (login) continua
+});
+
+test('resposta à campanha: automática ou só "ok" não é conversa de verdade', async () => {
+  const { notARealReply } = await import('../server/flows.js');
+  for (const t of ['ok', 'Ok!', 'OK obrigado', 'Tá bom', 'blz', 'Obrigada 🙏', '👍', 'Recebido', 'valeu',
+    'Olá, obrigado por entrar em contato com a Fazenda Boa Vista! Em breve responderemos.', 'Esta é uma mensagem automática.',
+    'Nosso horário de atendimento é de 8h às 18h.', 'Seja bem-vindo! Digite 1 para vendas']) assert.equal(notARealReply(t), true, t);
+  for (const t of ['Oi', 'Sim', 'Tenho interesse', 'Quanto custa?', 'ok, tenho uma 372', 'Bom dia, qual o valor?', '']) assert.equal(notARealReply(t), false, t);
 });
 
 test('WhatsApp Web: desconectar apaga a sessão guardada mesmo com a página travada', async () => {

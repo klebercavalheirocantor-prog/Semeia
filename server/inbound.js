@@ -2,7 +2,7 @@ import { one, run, now, tx } from './db.js';
 import { emit } from './bus.js';
 import { createContact, createLead, findContactByPoint, firstStage, openLeadOf, firstPipelineOf, logEvent } from './crm.js';
 import { downloadMedia, fetchProfileName } from './meta.js';
-import { onInbound } from './campaigns.js';
+import { onInbound, REPLY_WINDOW_MS } from './campaigns.js';
 import { flowOnInbound } from './flows.js';
 
 const RANK = { pending: 0, sent: 1, delivered: 2, read: 3, failed: 4 };
@@ -78,8 +78,15 @@ export function handleMessage(item) {
   if (item.direction === 'in' && item.ad) markAd(res, item.ad);
   if (item.direction === 'in') {
     const r = onInbound(res.contactId, item.msg.body, now(), channel.brand_id);
-    const camp = r === 'replied' && one(`select r.campaign_id from campaign_recipients r join campaigns c on c.id = r.campaign_id
-      where r.contact_id = ? and r.status = 'replied' and c.brand_id = ? order by r.replied_at desc limit 1`, res.contactId, channel.brand_id);
+    const camp = r === 'replied' ? one(`select r.campaign_id from campaign_recipients r join campaigns c on c.id = r.campaign_id
+      where r.contact_id = ? and r.status = 'replied' and c.brand_id = ? order by r.replied_at desc limit 1`, res.contactId, channel.brand_id)
+      // A 1ª resposta foi automática ou só "ok" (o robô esperou): a próxima mensagem ainda conta como resposta à campanha,
+      // desde que ninguém tenha respondido nem o robô tenha começado nesta conversa depois disso.
+      : r === null && one(`select r.campaign_id from campaign_recipients r join campaigns c on c.id = r.campaign_id
+      where r.contact_id = ? and r.status = 'replied' and c.brand_id = ? and r.replied_at > ?
+        and not exists (select 1 from flow_runs f where f.conversation_id = ? and f.created_at >= r.replied_at)
+        and not exists (select 1 from messages m where m.conversation_id = ? and m.direction = 'out' and m.created_at >= r.replied_at)
+      order by r.replied_at desc limit 1`, res.contactId, channel.brand_id, now() - REPLY_WINDOW_MS, res.conversationId, res.conversationId);
     res.flow = flowOnInbound({ conversationId: res.conversationId, text: item.msg.body, campaignId: camp?.campaign_id || null, newConversation: res.newConv, optout: r === 'optout', fromAd: !!item.ad });
   }
   // Depois do commit: baixar mídia e buscar o nome do perfil, sem travar o webhook.
