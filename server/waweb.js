@@ -102,6 +102,8 @@ export async function stopWeb(channelId, { logout = false } = {}) {
   try { if (logout) await s.client.logout(); } catch {}
   try { await s.client.destroy(); } catch {}
   sessions.delete(channelId);
+  // Desconectar = começar do zero: com a página travada o logout da biblioteca não apaga a sessão, então apaga aqui (Chrome já fechado).
+  if (logout) { try { fs.rmSync(path.join(DATA_DIR, 'whatsapp-web', `session-canal${channelId}`), { recursive: true, force: true, maxRetries: 5 }); } catch (e) { console.error('whatsapp web: não deu para apagar a sessão', e.message); } }
   emit('waweb', { channel_id: channelId });
 }
 

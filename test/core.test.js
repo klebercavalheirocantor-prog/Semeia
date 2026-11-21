@@ -1054,3 +1054,13 @@ test('WhatsApp Web: trava do Chrome de outro servidor é apagada antes de abrir'
   assert.ok(!fs.readdirSync(dir).includes('SingletonLock'));
   assert.ok(fs.existsSync(path.join(dir, 'Preferences'))); // a sessão (login) continua
 });
+
+test('WhatsApp Web: desconectar apaga a sessão guardada mesmo com a página travada', async () => {
+  const ch = one("select id from channels where kind = 'whatsapp' and config like '%\"mode\":\"web\"%'");
+  await call('admin', 'POST', '/api/waweb'); // garante o canal ligado
+  waFake.client.logout = async () => { throw new Error('página travada'); };
+  const dir = path.join(process.env.DATA_DIR, 'whatsapp-web', `session-canal${ch.id}`);
+  fs.mkdirSync(path.join(dir, 'Default'), { recursive: true });
+  assert.equal((await call('admin', 'POST', `/api/waweb/${ch.id}/logout`)).status, 200);
+  assert.ok(!fs.existsSync(dir));
+});
