@@ -69,6 +69,7 @@ export class Client extends EventEmitter {
     this.closed = false;
     this.retries = 0;
     this.info = null;
+    this.recent = new Map(); // id -> mensagem enviada (o WhatsApp pode pedir para reenviar se o celular do cliente não conseguiu abrir)
   }
 
   async initialize() { await load(); await this.connect(); }
@@ -81,6 +82,7 @@ export class Client extends EventEmitter {
     try { ({ version } = await B.fetchLatestBaileysVersion()); } catch {}
     const sock = B.makeWASocket({
       auth: state, logger: silent, printQRInTerminal: false, markOnlineOnConnect: false, syncFullHistory: false,
+      getMessage: async (key) => this.recent.get(key.id),
       ...(B.Browsers?.ubuntu && { browser: B.Browsers.ubuntu('Chrome') }), ...(version && { version }),
     });
     this.sock = sock;
@@ -187,6 +189,10 @@ export class Client extends EventEmitter {
             : { document: buf, mimetype: mime, fileName: content.filename || 'arquivo', caption };
     } else payload = { text: String(content ?? '') };
     const m = await this.sock.sendMessage(jid, payload);
+    if (m?.key?.id && m.message) {
+      this.recent.set(m.key.id, m.message);
+      if (this.recent.size > 5000) this.recent.delete(this.recent.keys().next().value);
+    }
     return { id: { _serialized: m?.key?.id || null } };
   }
 

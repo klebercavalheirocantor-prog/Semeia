@@ -20,7 +20,7 @@ setBaileys({
     const sock = {
       cfg, ev, sent: [], user: null, ended: false,
       onWhatsApp: async (n) => (n === '5567999990000' ? [] : [{ exists: true, jid: `${n.length === 13 ? n.slice(0, 4) + n.slice(5) : n}@s.whatsapp.net` }]),
-      sendMessage: async (jid, payload) => { sock.sent.push({ jid, payload }); return { key: { id: `SENT${sock.sent.length}` } }; },
+      sendMessage: async (jid, payload) => { sock.sent.push({ jid, payload }); return { key: { id: `SENT${sock.sent.length}` }, message: { conversation: payload.text || '' } }; },
       logout: async () => {}, end: () => { sock.ended = true; },
       signalRepository: { lidMapping: { getPNForLID: async (lid) => (lid === '999@lid' ? '5567911112222:3@s.whatsapp.net' : null) } },
     };
@@ -98,6 +98,8 @@ test('motor sem navegador: QR, conecta, recebe, responde, status, cai e volta so
   assert.equal(await c.getNumberId('5567999990000'), null);
   const r1 = await c.sendMessage('556788881111@c.us', 'Pra te passar o valor certinho, qual o modelo?');
   assert.deepEqual(s.sent[0], { jid: '556788881111@s.whatsapp.net', payload: { text: 'Pra te passar o valor certinho, qual o modelo?' } });
+  // o WhatsApp pede para reenviar (o celular do cliente não abriu): devolve a mensagem guardada
+  assert.deepEqual(await s.cfg.getMessage({ id: r1.id._serialized }), { conversation: 'Pra te passar o valor certinho, qual o modelo?' });
   await c.sendMessage('227616573395131@lid', new MessageMedia('image/png', Buffer.from('PNG').toString('base64'), 'tabela.png'), { caption: 'Segue a tabela' });
   assert.equal(s.sent[1].jid, '227616573395131@lid');
   assert.deepEqual([s.sent[1].payload.caption, s.sent[1].payload.mimetype, String(s.sent[1].payload.image)], ['Segue a tabela', 'image/png', 'PNG']);
