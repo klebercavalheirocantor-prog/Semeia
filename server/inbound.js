@@ -87,7 +87,7 @@ export function handleMessage(item) {
         and not exists (select 1 from flow_runs f where f.conversation_id = ? and f.created_at >= r.replied_at)
         and not exists (select 1 from messages m where m.conversation_id = ? and m.direction = 'out' and m.created_at >= r.replied_at)
       order by r.replied_at desc limit 1`, res.contactId, channel.brand_id, now() - REPLY_WINDOW_MS, res.conversationId, res.conversationId);
-    res.flow = flowOnInbound({ conversationId: res.conversationId, text: item.msg.body, campaignId: camp?.campaign_id || null, newConversation: res.newConv, optout: r === 'optout', fromAd: !!item.ad });
+    if (!item.noFlow) res.flow = flowOnInbound({ conversationId: res.conversationId, text: item.msg.body, campaignId: camp?.campaign_id || null, newConversation: res.newConv, optout: r === 'optout', fromAd: !!item.ad });
   }
   // Depois do commit: baixar mídia e buscar o nome do perfil, sem travar o webhook.
   if (item.msg.media) {

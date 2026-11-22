@@ -274,17 +274,23 @@ async function catchUp(channelId, client) {
   for (const chat of await client.getChats()) {
     const id = chat.id?._serialized || '';
     if (chat.isGroup || IGNORE.test(id) || (chat.timestamp || 0) * 1000 < since) continue;
-    for (const m of await chat.fetchMessages({ limit: 30 })) {
-      if (!m.fromMe && (m.timestamp || 0) * 1000 >= since) await onIncoming(channelId, m).catch((e) => console.error('whatsapp web: mensagem', e));
+    const msgs = await chat.fetchMessages({ limit: 30 });
+    // Você respondeu pelo celular depois da mensagem do cliente: o robô não entra (não responde por cima de você).
+    const lastOwn = Math.max(0, ...msgs.filter((m) => m.fromMe).map((m) => m.timestamp || 0));
+    for (const m of msgs) {
+      if ((m.timestamp || 0) * 1000 < since) continue;
+      if (m.fromMe) await onOwn(channelId, m).catch((e) => console.error('whatsapp web: eco', e));
+      else await onIncoming(channelId, m, { noFlow: (m.timestamp || 0) <= lastOwn }).catch((e) => console.error('whatsapp web: mensagem', e));
     }
   }
 }
 
-async function onIncoming(channelId, msg) {
+async function onIncoming(channelId, msg, { noFlow = false } = {}) {
   if (msg.fromMe) return;
   setSetting(SEEN(channelId), now());
   const channel = one("select * from channels where id = ? and status != 'disabled'", channelId);
   const item = channel && await toItem(channel, msg, 'in');
+  if (item && noFlow) item.noFlow = true;
   const res = item && handleMessage(item);
   // Veio do anúncio e é contato novo: salva também na agenda do celular ("Agro Sinal <nome>").
   if (res?.adName && /^\d{10,13}$/.test(item.userId)) { // código interno (LID) não vai para a agenda

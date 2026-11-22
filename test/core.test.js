@@ -1052,11 +1052,21 @@ test('anúncio clique-para-WhatsApp: lead com origem, etiqueta e nota do anúnci
     { id: { _serialized: '556798880003@c.us' }, isGroup: false, timestamp: ts(), fetchMessages: async () => [msg('556798880003@c.us', 'Vi o anúncio', 'night-1', AD)] },
     { id: { _serialized: '120363000@g.us' }, isGroup: true, timestamp: ts(), fetchMessages: async () => [msg('120363000@g.us', 'grupo', 'grp-1')] },
     { id: { _serialized: '556798880004@c.us' }, isGroup: false, timestamp: old.timestamp, fetchMessages: async () => [old] },
+    // este você já respondeu pelo celular enquanto o CRM estava fechado: o robô não responde por cima
+    { id: { _serialized: '556798880006@c.us' }, isGroup: false, timestamp: ts(), fetchMessages: async () => [
+      msg('556798880006@c.us', 'Vi o anúncio, quanto custa?', 'night-6', AD),
+      { ...msg('556798880006@c.us', 'Bom dia! Aqui é o Kleber, qual sua antena?', 'own-6'), fromMe: true, from: '556793300144@c.us', to: '556798880006@c.us' }] },
   ];
+  const sentBefore = c.sent.length;
   c.emit('ready');
   await wait(60); await flush();
   const night = one("select * from conversations where external_id = '556798880003'");
   assert.ok(night && night.lead_id);
+  const night6 = one("select * from conversations where external_id = '556798880006'");
+  assert.ok(night6);
+  assert.equal(one('select count(*) n from flow_runs where conversation_id = ?', night6.id).n, 0);
+  assert.ok(!c.sent.slice(sentBefore).some((m) => m.chatId.startsWith('556798880006')));
+  assert.equal(one("select direction from messages where external_id = 'own-6'")?.direction, 'out');
   assert.equal(one("select count(*) n from messages where external_id in ('grp-1', 'old-1')").n, 0);
   c.emit('ready'); await wait(40); // de novo: não duplica
   assert.equal(one("select count(*) n from messages where external_id = 'night-1'").n, 1);
