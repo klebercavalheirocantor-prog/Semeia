@@ -1203,3 +1203,33 @@ test('WhatsApp Web: QR vencido (parado há mais de 1 min) é renovado sozinho qu
   assert.equal(webStatus(ch.id).state, 'qr');
   await stopAllWeb();
 });
+
+test('vários números: conectar outro WhatsApp (Paraguai) com QR próprio, sem mexer no primeiro', async () => {
+  const { webStatus, stopAllWeb } = await import('../server/waweb.js');
+  await stopAllWeb();
+  const br = (await call('admin', 'POST', '/api/waweb')).body;
+  const py = (await call('admin', 'POST', '/api/waweb', { novo: true, name: 'Paraguai' })).body;
+  assert.notEqual(py.id, br.id);
+  const ch = one('select * from channels where id = ?', py.id);
+  assert.equal(ch.name, 'Paraguai');
+  assert.equal(JSON.parse(ch.config).mode, 'web');
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(webStatus(py.id).state, 'qr');
+  assert.equal(webStatus(br.id).state, 'qr');
+  // conectar de novo um número específico
+  assert.equal((await call('admin', 'POST', '/api/waweb', { channel_id: py.id })).body.id, py.id);
+  assert.equal((await call('admin', 'POST', '/api/waweb', { channel_id: 999999 })).status, 404);
+  // a campanha escolhe por qual número sai
+  const c = (await call('admin', 'POST', '/api/campaigns', { name: 'PY', channel: 'whatsapp', tags: ['x'], body: 'Hola', wa_channel_id: py.id, window_start: 0, window_end: 24 })).body;
+  assert.equal(one('select wa_channel_id from campaigns where id = ?', c.id).wa_channel_id, py.id);
+  await stopAllWeb();
+  run("update channels set status = 'disabled' where id = ?", py.id);
+});
+
+test('IA responde no idioma do cliente', async () => {
+  const { aiAgent } = await import('../server/ai.js');
+  aiAnswers = ['{"resposta":"¡Hola! ¿Qué modelo de antena y monitor usa?","tabelas":[],"acao":"continuar"}'];
+  const r = await aiAgent([{ direction: 'in', body: 'Hola, cuánto cuesta la señal?' }], { items: [] });
+  assert.match(anthropic.at(-1).body.system, /idioma em que o cliente escreveu/);
+  assert.equal(r.reply, '¡Hola! ¿Qué modelo de antena y monitor usa?');
+});

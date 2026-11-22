@@ -118,7 +118,8 @@ export class Client extends EventEmitter {
       return;
     }
     // Qualquer outra queda (reinício pedido depois do QR, internet, QR vencido): reconecta sozinho com o mesmo login.
-    const wait = code === R.restartRequired ? 0 : Math.min(60e3, 2000 * 2 ** this.retries++);
+    // connectionReplaced: outro aparelho com o mesmo login assumiu (ex.: o servidor antigo ainda ligado na atualização): espera mais.
+    const wait = code === R.restartRequired ? 0 : code === R.connectionReplaced ? 30e3 : Math.min(60e3, 2000 * 2 ** this.retries++);
     setTimeout(() => this.connect().catch((e) => this.emit('disconnected', e.message)), wait);
   }
 

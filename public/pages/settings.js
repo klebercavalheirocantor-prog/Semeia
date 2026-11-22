@@ -1,4 +1,4 @@
-import { html, useState, useEffect, api, post, patch, del, fail, toast, B, Modal, Confirm, UserSelect, Empty } from '../lib.js';
+import { html, useState, useEffect, api, post, patch, del, fail, toast, B, loadBoot, Modal, Confirm, UserSelect, Empty } from '../lib.js';
 
 const SECTIONS = [['general', 'Geral'], ['channels', 'Canais'], ['templates', 'Modelos do WhatsApp'], ['email', 'E-mail'], ['ai', 'Assistente de IA'], ['pipelines', 'Funis e etapas'], ['users', 'Equipe'], ['roles', 'Permissões'], ['fields', 'Campos'], ['lists', 'Tags e listas'], ['account', 'Minha conta']];
 
@@ -159,9 +159,8 @@ function ChannelModal({ onClose }) {
   </form><//>`;
 }
 
-// Conectar o número pelo QR code, como no WhatsApp Web / WA Web Plus.
-function WebConnect() {
-  const ch = B().channels.find((c) => c.kind === 'whatsapp' && c.mode === 'web');
+// Conectar números pelo QR code, como no WhatsApp Web / WA Web Plus. Cada número tem o seu cartão (Brasil, Paraguai, EUA...).
+function WebConnect({ ch }) {
   const [st, setSt] = useState(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -172,23 +171,39 @@ function WebConnect() {
     const t = setInterval(tick, 2000);
     return () => { on = false; clearInterval(t); };
   }, [ch?.id]);
-  const connect = async () => { setBusy(true); try { setSt(await post('/waweb')); } catch (e) { fail(e); } setBusy(false); };
+  const connect = async () => { setBusy(true); try { setSt(await post('/waweb', ch ? { channel_id: ch.id } : {})); } catch (e) { fail(e); } setBusy(false); };
   const logout = async () => { setBusy(true); try { await post(`/waweb/${ch.id}/logout`); toast('Desconectado'); setSt({ state: 'off' }); } catch (e) { fail(e); } setBusy(false); };
   const s = st?.state || 'off';
   return html`<div class="card pad col" style="gap:var(--s-3)">
-    <div class="row"><div class="grow"><h3>WhatsApp Web (QR code)</h3>
-      <div class="small muted">O CRM vira um aparelho conectado do seu número, como o WA Web Plus. Envia campanhas, recebe as respostas e roda os fluxos.</div></div>
+    <div class="row"><div class="grow"><h3>${ch?.name && ch.name !== 'WhatsApp Web' ? `WhatsApp · ${ch.name}` : 'WhatsApp Web (QR code)'}</h3>
+      <div class="small muted">O CRM vira um aparelho conectado do número, como o WA Web Plus. Envia campanhas, recebe as respostas e roda os fluxos.</div></div>
       ${s === 'ready' ? html`<span class="pill ok">Conectado${st.me ? `: ${st.me}` : ''}</span>` : s === 'qr' ? html`<span class="pill warn">Aguardando leitura</span>` : s === 'starting' ? html`<span class="pill">Abrindo…</span>` : html`<span class="pill">Desconectado</span>`}</div>
     ${s === 'qr' && st.qr && html`<div class="row wrap" style="align-items:flex-start;gap:var(--s-4)"><img src=${st.qr} alt="QR code para conectar o WhatsApp" width="260" height="260" style="border-radius:8px;background:#fff;padding:6px" />
-      <ol class="small" style="margin:0;padding-left:18px;max-width:320px"><li>No celular do número da empresa, abra o WhatsApp.</li><li>Toque em ⋮ (ou Configurações) › <strong>Aparelhos conectados</strong> › <strong>Conectar aparelho</strong>.</li><li>Aponte a câmera para este código.</li></ol></div>`}
-    ${s === 'starting' && html`<p class="small muted">Abrindo o WhatsApp Web… na primeira vez pode levar até 1 minuto.</p>`}
+      <ol class="small" style="margin:0;padding-left:18px;max-width:320px"><li>No celular ${ch?.name && ch.name !== 'WhatsApp Web' ? `do número ${ch.name}` : 'do número da empresa'}, abra o WhatsApp.</li><li>Toque em ⋮ (ou Configurações) › <strong>Aparelhos conectados</strong> › <strong>Conectar aparelho</strong>.</li><li>Aponte a câmera para este código.</li></ol></div>`}
+    ${s === 'starting' && html`<p class="small muted">Abrindo o WhatsApp… leva alguns segundos.</p>`}
     ${st?.error && s !== 'ready' && html`<div class="banner warn small">${st.error}</div>`}
     <div class="row">
       ${s === 'ready' ? html`<button class="btn" disabled=${busy} onClick=${logout}>Desconectar este aparelho</button>`
         : !['qr', 'starting'].includes(s) && html`<button class="btn primary" disabled=${busy} onClick=${connect}>${ch ? 'Conectar de novo' : 'Conectar pelo QR code'}</button>`}
     </div>
-    <p class="xs muted">Não é a API oficial: o que protege o número é o ritmo das campanhas (intervalo, lotes e pausas). Não dispare pelo WA Web Plus e pelo CRM ao mesmo tempo no mesmo número.
-      O computador precisa ficar ligado com o CRM aberto.</p>
+  </div>`;
+}
+
+function WebNumbers() {
+  const webs = B().channels.filter((c) => c.kind === 'whatsapp' && c.mode === 'web' && c.status !== 'disabled');
+  const [busy, setBusy] = useState(false);
+  const addNumber = async () => {
+    const name = prompt('Nome deste número (ex.: Paraguai, EUA):');
+    if (!name || !name.trim()) return;
+    setBusy(true);
+    try { await post('/waweb', { novo: true, name: name.trim() }); await loadBoot(); toast('Leia o QR code com o celular desse número'); } catch (e) { fail(e); }
+    setBusy(false);
+  };
+  return html`<div class="col" style="gap:var(--s-3)">
+    ${webs.length ? webs.map((ch) => html`<${WebConnect} key=${ch.id} ch=${ch} />`) : html`<${WebConnect} ch=${null} />`}
+    ${webs.length > 0 && html`<div class="row"><button class="btn" disabled=${busy} onClick=${addNumber}>+ Conectar outro WhatsApp</button>
+      <span class="xs muted">Cada número lê o seu QR. As campanhas escolhem por qual número sair; as respostas caem no mesmo funil e a IA responde no idioma do cliente.</span></div>`}
+    <p class="xs muted">Não é a API oficial: o que protege cada número é o ritmo das campanhas (intervalo, lotes e pausas). Não dispare pelo WA Web Plus e pelo CRM ao mesmo tempo no mesmo número.</p>
   </div>`;
 }
 
@@ -199,7 +214,7 @@ function Channels() {
   const chs = B().channels;
   return html`<div class="col" style="max-width:760px">
     <div class="row"><h2 class="grow">Canais</h2><button class="btn" onClick=${() => setAdd(true)}>+ API da Meta / Messenger / Instagram</button></div>
-    <${WebConnect} />
+    <${WebNumbers} />
     ${!B().meta.has_app_secret && chs.some((c) => c.mode !== 'web' && c.mode !== 'imap') && html`<div class="banner warn">Falta a chave secreta do app em Configurações > Geral. Sem ela o CRM recusa as mensagens que chegam.</div>`}
 
     ${chs.map((c) => html`<div class="card pad row wrap">

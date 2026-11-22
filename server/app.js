@@ -942,13 +942,17 @@ app.patch('/api/channels/:id', (req, res) => {
   res.json({ ok: true });
 });
 // ---------- WhatsApp Web (QR code, como o WA Web Plus)
+// Conectar pelo QR code. Sem nada: o 1º número (cria se não existir). channel_id: aquele número. novo: mais um número (ex.: "Paraguai").
 app.post('/api/waweb', async (req, res) => {
   admin(req);
-  let ch = all("select * from channels where kind = 'whatsapp' and brand_id = ?", req.brand).find(isWeb);
+  const { channel_id, novo, name } = req.body || {};
+  let ch = channel_id ? one("select * from channels where id = ? and kind = 'whatsapp' and brand_id = ?", Number(channel_id), req.brand)
+    : novo ? null : all("select * from channels where kind = 'whatsapp' and brand_id = ?", req.brand).find(isWeb);
+  if (channel_id && (!ch || !isWeb(ch))) throw httpError(404, 'Canal não encontrado');
   if (!ch) {
     const pid = firstPipelineOf(req.brand);
-    const id = Number(run("insert into channels(kind, name, external_id, config, created_at, brand_id) values('whatsapp', 'WhatsApp Web', ?, ?, ?, ?)",
-      `web-${now()}`, JSON.stringify({ mode: 'web', pipeline_id: pid }), now(), req.brand).lastInsertRowid);
+    const id = Number(run("insert into channels(kind, name, external_id, config, created_at, brand_id) values('whatsapp', ?, ?, ?, ?, ?)",
+      String(name || '').trim().slice(0, 60) || 'WhatsApp Web', `web-${now()}-${Math.random().toString(36).slice(2, 6)}`, JSON.stringify({ mode: 'web', pipeline_id: pid }), now(), req.brand).lastInsertRowid);
     ch = one('select * from channels where id = ?', id);
     emit('config');
   } else if (ch.status === 'disabled') { run("update channels set status = 'active' where id = ?", ch.id); ch.status = 'active'; emit('config'); }
