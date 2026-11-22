@@ -20,6 +20,7 @@ setBaileys({
     const sock = {
       cfg, ev, sent: [], user: null, ended: false,
       onWhatsApp: async (n) => (n === '5567999990000' ? [] : [{ exists: true, jid: `${n.length === 13 ? n.slice(0, 4) + n.slice(5) : n}@s.whatsapp.net` }]),
+      read: [], readMessages: async (keys) => { sock.read.push(...keys.map((k) => k.id)); },
       sendMessage: async (jid, payload) => { sock.sent.push({ jid, payload }); return { key: { id: `SENT${sock.sent.length}` }, message: { conversation: payload.text || '' } }; },
       logout: async () => {}, end: () => { sock.ended = true; },
       signalRepository: { lidMapping: { getPNForLID: async (lid) => (lid === '999@lid' ? '5567911112222:3@s.whatsapp.net' : null) } },
@@ -108,6 +109,15 @@ test('motor sem navegador: QR, conecta, recebe, responde, status, cai e volta so
   s.ev.emit('messages.update', [{ key: { id: r1.id._serialized }, update: { status: 2 } }, { key: { id: 'SENT1' }, update: { status: 3 } },
     { key: { id: 'SENT1' }, update: { status: 4 } }, { key: { id: 'X' }, update: { status: 0 } }, { key: { id: 'Y' }, update: { status: 1 } }]);
   assert.deepEqual(ev.ack, [['SENT1', 1], ['SENT1', 2], ['SENT1', 3], ['X', -1]]);
+
+  // respondeu pelo CRM: a conversa fica lida no celular (só a mensagem daquele cliente, uma vez)
+  // (a tabela mandada acima para o id interno do anúncio já marcou a mensagem dele como lida)
+  assert.deepEqual(s.read, ['L1']);
+  await c.sendMessage('5567988881111@c.us', 'Oi Carlos'); // a última dele foi a foto
+  assert.deepEqual(s.read, ['L1', 'IMG']);
+  await c.sendMessage('5567988881111@c.us', 'Mais uma');
+  await c.sendMessage('5567988885555@c.us', 'Oi'); // mesmo cliente do id interno, pelo telefone: já estava lida
+  assert.deepEqual(s.read, ['L1', 'IMG']);
 
   // internet caiu: reconecta sozinho com o MESMO login (sem QR)
   s.ev.emit('connection.update', { connection: 'close', lastDisconnect: { error: { output: { statusCode: 428 } } } });

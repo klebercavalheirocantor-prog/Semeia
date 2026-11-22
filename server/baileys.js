@@ -102,6 +102,7 @@ export class Client extends EventEmitter {
     this.retries = 0;
     this.info = null;
     this.recent = new Map(); // id -> mensagem enviada (o WhatsApp pode pedir para reenviar se o celular do cliente não conseguiu abrir)
+    this.lastIn = new Map(); // conversa -> última mensagem recebida (para marcar como lida quando o CRM responde)
   }
 
   async initialize() { await load(); await this.connect(); }
@@ -199,6 +200,8 @@ export class Client extends EventEmitter {
     if (age > 24 * 3600) return; // histórico antigo não entra
     if (msg.fromMe) { this.emit('message_create', msg); return; }
     if (type !== 'notify' && type !== 'append') return;
+    for (const j of [toC(jid), alt && toC(alt)].filter(Boolean)) this.lastIn.set(j, wm.key);
+    if (this.lastIn.size > 5000) this.lastIn.delete(this.lastIn.keys().next().value);
     msg._noFlow = msg.timestamp <= (lastOwn[jid] || 0);
     this.emit('message', msg);
   }
@@ -233,6 +236,12 @@ export class Client extends EventEmitter {
             : { document: buf, mimetype: mime, fileName: content.filename || 'arquivo', caption };
     } else payload = { text: String(content ?? '') };
     const m = await this.sock.sendMessage(jid, payload);
+    // Como o WhatsApp Web fazia: respondeu pelo CRM = conversa lida no celular (não fica "não lida" acumulando).
+    const seen = this.lastIn.get(chatId);
+    if (seen) {
+      for (const [k, v] of this.lastIn) if (v === seen) this.lastIn.delete(k);
+      try { await this.sock.readMessages?.([seen]); } catch {}
+    }
     if (m?.key?.id && m.message) {
       this.recent.set(m.key.id, m.message);
       if (this.recent.size > 5000) this.recent.delete(this.recent.keys().next().value);
