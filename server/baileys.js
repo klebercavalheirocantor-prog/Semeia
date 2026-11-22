@@ -253,6 +253,10 @@ export class Client extends EventEmitter {
     return { id: { _serialized: m?.key?.id || null } };
   }
 
+  async typing(chatId) {
+    await this.sock?.sendPresenceUpdate?.('composing', toS(chatId));
+  }
+
   async saveOrEditAddressbookContact(phone, first, last) {
     if (typeof this.sock?.addOrEditContact !== 'function') return; // versão sem agenda: só não salva
     await this.sock.addOrEditContact(`${phone}@s.whatsapp.net`, { fullName: `${first} ${last}`.trim(), firstName: first, saveOnPrimaryAddressbook: true });

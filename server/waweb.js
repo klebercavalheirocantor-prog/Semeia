@@ -219,6 +219,15 @@ export async function resolveNumber(channel, to) {
   return digits.length >= 14 ? `${digits}@lid` : null;
 }
 
+// Mostra "digitando..." para o cliente (antes da IA responder). Se não der, só não mostra.
+export async function typingWeb(channel, to) {
+  try {
+    const s = ready(channel.id);
+    const chatId = await resolveNumber(channel, to);
+    if (chatId) await s.client.typing?.(chatId);
+  } catch {}
+}
+
 // Envia texto ou imagem com legenda. Botões viram uma lista numerada (o cliente responde "1", "2"...).
 export async function sendWeb(channel, to, { text = '', file, buttons } = {}) {
   const s = ready(channel.id);

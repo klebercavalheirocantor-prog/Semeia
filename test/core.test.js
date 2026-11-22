@@ -6,6 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-test-'));
+process.env.AI_REPLY_DELAY = '0'; // nos testes a IA responde sem a pausa de "digitando..."
 const { app } = await import('../server/app.js');
 const { normPhone } = await import('../server/crm.js');
 const { setSetting, getSetting, one, run, all } = await import('../server/db.js');
@@ -1257,4 +1258,35 @@ test('fluxo de um número só (Paraguai, tabelas em dólar) passa na frente do f
   assert.notEqual(one('select flow_id from flow_runs where conversation_id = ?', convBr).flow_id, soPy);
   run('update flows set active = 0 where id in (?, ?)', geral, soPy);
   run("update channels set status = 'disabled' where id = ?", py);
+});
+
+test('IA espera uns segundos antes de responder; se uma pessoa assumir nesse meio tempo, o robô não entra', async () => {
+  const { flowOnInbound, flowOnHuman } = await import('../server/flows.js');
+  const clone = (table, row, over) => {
+    const r = { ...row, ...over }; delete r.id;
+    const k = Object.keys(r);
+    return Number(run(`insert into ${table}(${k.join(',')}) values(${k.map(() => '?').join(',')})`, ...k.map((x) => r[x])).lastInsertRowid);
+  };
+  const baseConv = one("select c.* from conversations c join channels ch on ch.id = c.channel_id where ch.kind = 'whatsapp' order by c.id desc limit 1");
+  const conv = clone('conversations', baseConv, { external_id: '5567900000077', status: 'open' });
+  run("insert into messages(conversation_id, direction, kind, body, status, created_at) values(?, 'in', 'text', 'Quanto custa?', 'delivered', ?)", conv, Date.now());
+  const g = JSON.stringify({ nodes: [{ id: 'start', type: 'start', data: {} }, { id: 'ia', type: 'ai_agent', data: { items: [], max_turns: 6, timeout_hours: 1 } }, { id: 'h', type: 'handoff', data: {} }],
+    edges: [{ from: 'start', port: 'next', to: 'ia' }, { from: 'ia', port: 'humano', to: 'h' }, { from: 'ia', port: 'enviou', to: 'h' }] });
+  const ch = one('select * from channels where id = ?', baseConv.channel_id);
+  const fid = Number(run("insert into flows(name, trigger, trigger_config, active, graph, created_at, updated_at, brand_id) values('IA com pausa (teste)', 'ad_click', ?, 1, ?, 0, 0, ?)",
+    JSON.stringify({ channel_id: ch.id }), g, ch.brand_id ?? 1).lastInsertRowid);
+  process.env.AI_REPLY_DELAY = '0.3';
+  const calls = anthropic.length;
+  const t0 = Date.now();
+  const p = flowOnInbound({ conversationId: conv, text: 'Quanto custa?', fromAd: true });
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(one('select state from flow_runs where conversation_id = ?', conv).state, 'running'); // "digitando..."
+  flowOnHuman(conv); // o Kleber respondeu pelo celular
+  await p;
+  assert.ok(Date.now() - t0 >= 250);
+  assert.equal(anthropic.length, calls); // nem chamou a IA
+  assert.equal(one('select state from flow_runs where conversation_id = ?', conv).state, 'stopped');
+  assert.equal(one("select count(*) n from messages where conversation_id = ? and direction = 'out'", conv).n, 0);
+  process.env.AI_REPLY_DELAY = '0';
+  run('update flows set active = 0 where id = ?', fid);
 });

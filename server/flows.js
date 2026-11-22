@@ -96,6 +96,10 @@ async function execNode(node, io) {
     }
     case 'ai_agent': {
       // IA conversa até descobrir o modelo; quando descobre, manda a tabela (imagem) com a frase dela como legenda.
+      // Antes de responder espera uns segundos com "digitando..." (resposta na hora denuncia o robô).
+      // Se uma pessoa assumiu a conversa nesse meio tempo, o robô não entra.
+      if (io.pause && !(await io.pause())) return { abort: true };
+      if (io.pause && (await io.history()).at(-1)?.direction === 'out') return { wait: 'reply', ms: (Number(d.timeout_hours) || 1) * H }; // já respondeu tudo
       const turns = (io.vars.ai_turns ||= {});
       turns[node.id] = (turns[node.id] || 0) + 1;
       const sent = io.vars.models || [];
@@ -171,6 +175,7 @@ async function drive(graph, st, io, first, save) {
       save({ state: 'running' });
       continue;
     }
+    if (outcome.abort) return; // uma pessoa assumiu: o estado já foi gravado por ela
     if (outcome.wait) return save({ state: outcome.wait === 'reply' ? 'waiting_reply' : 'waiting_time', wake_at: now() + outcome.ms });
     return save({ state: outcome.state });
   }
@@ -210,6 +215,21 @@ function realIO(conv, vars) {
         run("update messages set status = 'failed', error = ? where id = ?", e.message, mid);
         throw e;
       } finally { emit('message', { conversation_id: conv.id, lead_id: c.lead_id }); }
+    },
+    // Espera de 10 a 25 s mostrando "digitando..." (AI_REPLY_DELAY=0 desliga, para os testes). false = uma pessoa assumiu.
+    async pause() {
+      const max = process.env.AI_REPLY_DELAY !== undefined ? Number(process.env.AI_REPLY_DELAY) * 1000 : 25e3;
+      if (!(max > 0)) return true;
+      const ms = Math.round(Math.min(max, 10e3 + Math.random() * 15e3));
+      const t0 = now();
+      const c = one('select external_id from conversations where id = ?', conv.id);
+      if (channel.kind === 'whatsapp' && JSON.parse(channel.config).mode === 'web') {
+        const { typingWeb } = await import('./waweb.js');
+        await typingWeb(channel, c.external_id);
+        if (ms > 12e3) setTimeout(() => typingWeb(channel, c.external_id), ms - 9e3).unref?.(); // renova o "digitando..."
+      }
+      await new Promise((r) => setTimeout(r, ms));
+      return !one("select 1 from flow_runs where conversation_id = ? and state = 'stopped' and updated_at >= ?", conv.id, t0);
     },
     setStage(stageId) {
       const lead = leadOf();
