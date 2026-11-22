@@ -321,15 +321,17 @@ export function flowOnInbound({ conversationId, text, campaignId = null, newConv
     }
     const conv = one("select c.*, ch.brand_id, ch.kind channel_kind from conversations c join channels ch on ch.id = c.channel_id where c.id = ? and c.status = 'open'", conversationId);
     if (!conv) return;
-    // Só fluxos da empresa do canal; "channel" no gatilho limita a WhatsApp ou e-mail.
+    // Só fluxos da empresa do canal; "channel" no gatilho limita a WhatsApp ou e-mail, "channel_id" a um número só
+    // (ex.: o do Paraguai, com tabelas em dólar). Fluxo de um número específico vem antes do geral.
     // Quem chega pelo anúncio vai primeiro para o fluxo "veio do anúncio"; se não houver um ligado, segue a regra normal.
     const triggers = [fromAd && 'ad_click', campaignId ? 'campaign_reply' : newConversation ? 'new_conversation' : null].filter(Boolean);
     for (const trigger of triggers) {
-      for (const { id } of all('select id from flows where active = 1 and trigger = ? and brand_id = ? order by id', trigger, conv.brand_id)) {
+      for (const { id } of all("select id from flows where active = 1 and trigger = ? and brand_id = ? order by json_extract(trigger_config, '$.channel_id') is null, id", trigger, conv.brand_id)) {
         const flow = loadFlow(id);
         if (trigger === 'campaign_reply' && flow.trigger_config.campaign_id && Number(flow.trigger_config.campaign_id) !== campaignId) continue;
         if (trigger === 'campaign_reply' && notARealReply(text)) break; // espera a pessoa escrever de verdade
         if (flow.trigger_config.channel && flow.trigger_config.channel !== conv.channel_kind) continue;
+        if (flow.trigger_config.channel_id && Number(flow.trigger_config.channel_id) !== conv.channel_id) continue;
         return startRun(flow, conv, { last_reply: text, campaign_id: campaignId });
       }
     }

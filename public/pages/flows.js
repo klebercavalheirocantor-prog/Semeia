@@ -120,13 +120,16 @@ export function FlowPage({ id }) {
     } catch (e) { fail(e); }
   };
   const node = sel?.node && f.graph.nodes.find((n) => n.id === sel.node);
+  const waChans = B().channels.filter((c) => c.kind === 'whatsapp' && c.status !== 'disabled');
   const stages = B().pipelines.flatMap((p) => p.stages.map((s) => ({ id: s.id, name: `${p.name} › ${s.name}` })));
   return html`<div class="main">
     <div class="topbar fl-top"><a href="#/flows" class="small">← Fluxos</a>
       <input class="fl-name" aria-label="Nome do fluxo" value=${f.name} onInput=${(e) => up({ name: e.target.value })} />
       <select aria-label="Gatilho" value=${f.trigger} onChange=${(e) => up({ trigger: e.target.value, trigger_config: {} })}>${Object.entries(TRIGGERS).map(([k, v]) => html`<option value=${k}>${v}</option>`)}</select>
-      ${f.trigger === 'campaign_reply' && html`<select aria-label="Qual campanha" value=${String(f.trigger_config.campaign_id || '')} onChange=${(e) => up({ trigger_config: { campaign_id: e.target.value ? Number(e.target.value) : null } })}>
+      ${f.trigger === 'campaign_reply' && html`<select aria-label="Qual campanha" value=${String(f.trigger_config.campaign_id || '')} onChange=${(e) => up({ trigger_config: { ...f.trigger_config, campaign_id: e.target.value ? Number(e.target.value) : null } })}>
         <option value="">Qualquer campanha</option>${camps.map((c) => html`<option value=${String(c.id)}>${c.name}</option>`)}</select>`}
+      ${f.trigger !== 'stage_changed' && waChans.length > 1 && html`<select aria-label="Qual número" title="Fluxo de um número só passa na frente do fluxo geral" value=${String(f.trigger_config.channel_id || '')} onChange=${(e) => up({ trigger_config: { ...f.trigger_config, channel_id: e.target.value ? Number(e.target.value) : null } })}>
+        <option value="">Qualquer número</option>${waChans.map((c) => html`<option value=${String(c.id)}>${c.name}</option>`)}</select>`}
       ${f.trigger === 'stage_changed' && html`<select aria-label="Qual etapa" value=${String(f.trigger_config.stage_id || '')} onChange=${(e) => up({ trigger_config: { stage_id: Number(e.target.value) || null } })}>
         <option value="">— etapa —</option>${stages.map((s) => html`<option value=${String(s.id)}>${s.name}</option>`)}</select>`}
       <span class="grow"></span>

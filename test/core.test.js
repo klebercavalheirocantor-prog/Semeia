@@ -1233,3 +1233,28 @@ test('IA responde no idioma do cliente', async () => {
   assert.match(anthropic.at(-1).body.system, /idioma em que o cliente escreveu/);
   assert.equal(r.reply, '¡Hola! ¿Qué modelo de antena y monitor usa?');
 });
+
+test('fluxo de um número só (Paraguai, tabelas em dólar) passa na frente do fluxo geral; os outros números seguem no geral', async () => {
+  const { flowOnInbound } = await import('../server/flows.js');
+  const clone = (table, row, over) => {
+    const r = { ...row, ...over }; delete r.id;
+    const k = Object.keys(r);
+    return Number(run(`insert into ${table}(${k.join(',')}) values(${k.map(() => '?').join(',')})`, ...k.map((x) => r[x])).lastInsertRowid);
+  };
+  const base = one("select c.* from conversations c join channels ch on ch.id = c.channel_id where ch.kind = 'whatsapp' order by c.id desc limit 1");
+  const chRow = one('select * from channels where id = ?', base.channel_id);
+  const py = clone('channels', chRow, { name: 'Paraguai (teste)', external_id: `web-py-${Date.now()}`, status: 'active' });
+  const convPy = clone('conversations', base, { channel_id: py, external_id: '595976000001', status: 'open' });
+  const convBr = clone('conversations', base, { external_id: '5567900000001', status: 'open' });
+  const g = JSON.stringify({ nodes: [{ id: 'start', type: 'start', data: {} }, { id: 'end', type: 'end', data: {} }], edges: [{ from: 'start', port: 'next', to: 'end' }] });
+  const mk = (name, tc) => Number(run("insert into flows(name, trigger, trigger_config, active, graph, created_at, updated_at, brand_id) values(?, 'ad_click', ?, 1, ?, 0, 0, ?)",
+    name, JSON.stringify(tc), g, chRow.brand_id ?? 1).lastInsertRowid);
+  const geral = mk('Anúncio geral (teste)', { channel: 'whatsapp' });
+  const soPy = mk('Anúncio Paraguai em dólar (teste)', { channel: 'whatsapp', channel_id: py });
+  await flowOnInbound({ conversationId: convPy, text: 'Hola, quiero más información', fromAd: true });
+  await flowOnInbound({ conversationId: convBr, text: 'Olá, quero mais informações', fromAd: true });
+  assert.equal(one('select flow_id from flow_runs where conversation_id = ?', convPy).flow_id, soPy);
+  assert.notEqual(one('select flow_id from flow_runs where conversation_id = ?', convBr).flow_id, soPy);
+  run('update flows set active = 0 where id in (?, ?)', geral, soPy);
+  run("update channels set status = 'disabled' where id = ?", py);
+});
