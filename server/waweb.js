@@ -112,7 +112,7 @@ export async function startWeb(channel) {
   client.on('auth_failure', (m) => console.error('whatsapp web: login guardado recusado', m));
   client.on('qr', async (qr) => {
     if (!qrLogged) { qrLogged = true; console.log(`whatsapp web: pediu QR (login guardado ao abrir: ${hadSession ? 'sim' : 'não'})`); }
-    set({ state: 'qr', qr: await L.toDataURL(qr) });
+    set({ state: 'qr', qr: await L.toDataURL(qr), qrAt: Date.now() });
     if (everReady.has(channel.id)) { everReady.delete(channel.id); alertAdmin('O WhatsApp do Semeia foi desconectado pelo celular.'); }
   });
   client.on('ready', () => {
@@ -163,6 +163,18 @@ export async function stopWeb(channelId, { logout = false } = {}) {
     catch (e) { console.error('whatsapp web: não deu para apagar a sessão', e.message); }
   }
   emit('waweb', { channel_id: channelId });
+}
+
+// QR parado: o WhatsApp para de renovar o código depois de alguns minutos e o celular não consegue ler o vencido.
+// Quando alguém está olhando a tela (ela consulta o status), começa de novo do zero e aparece um QR novo.
+export function refreshStaleQr(channelId, maxAgeMs = 60e3) {
+  const s = sessions.get(channelId);
+  if (!s || s.state !== 'qr' || s.refreshing || Date.now() - (s.qrAt || 0) < maxAgeMs) return false;
+  s.refreshing = true;
+  const channel = one('select * from channels where id = ?', channelId);
+  if (!channel) return false;
+  stopWeb(channelId, { logout: true }).then(() => startWeb(channel)).catch((e) => console.error('whatsapp web: renovar QR', e.message));
+  return true;
 }
 
 // Desligar com calma: fecha o Chrome de cada canal para a sessão ficar gravada inteira.

@@ -15,7 +15,7 @@ import { dashboard } from './dashboard.js';
 import { results, readInvestment } from './results.js';
 import { flowOnHuman, flowOnStage, validateGraph, simulate, portsOf } from './flows.js';
 import { claude, DEFAULT_MODEL } from './ai.js';
-import { isWeb, startWeb, stopWeb, webStatus } from './waweb.js';
+import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr } from './waweb.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 export const app = express();
@@ -954,7 +954,7 @@ app.post('/api/waweb', async (req, res) => {
   } else if (ch.status === 'disabled') { run("update channels set status = 'active' where id = ?", ch.id); ch.status = 'active'; emit('config'); }
   res.json({ id: ch.id, ...(await startWeb(ch)) });
 });
-app.get('/api/waweb/:id', (req, res) => { admin(req); res.json(webStatus(Number(req.params.id))); });
+app.get('/api/waweb/:id', (req, res) => { admin(req); refreshStaleQr(Number(req.params.id)); res.json(webStatus(Number(req.params.id))); });
 // Reabre só o WhatsApp (sem sair da conta e sem reiniciar o servidor): para destravar e para testar se o login guardado volta.
 app.post('/api/waweb/:id/restart', async (req, res) => {
   admin(req);

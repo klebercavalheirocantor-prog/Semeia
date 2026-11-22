@@ -1187,3 +1187,19 @@ test('WhatsApp Web: reabrir só o WhatsApp sem sair da conta', async () => {
   assert.equal(loggedOut, 0);
   assert.equal((await call('admin', 'POST', '/api/waweb/99999/restart')).status, 404);
 });
+
+test('WhatsApp Web: QR vencido (parado há mais de 1 min) é renovado sozinho quando a tela consulta', async () => {
+  const { refreshStaleQr, webStatus, stopAllWeb } = await import('../server/waweb.js');
+  const ch = one("select id from channels where kind = 'whatsapp' and config like '%\"mode\":\"web\"%'");
+  await stopAllWeb();
+  await call('admin', 'POST', '/api/waweb');
+  await new Promise((r) => setTimeout(r, 20)); // o falso manda o QR
+  const before = waFake.client;
+  assert.equal(webStatus(ch.id).state, 'qr');
+  assert.equal(refreshStaleQr(ch.id), false); // QR recente: não mexe
+  assert.equal(refreshStaleQr(ch.id, -1), true); // "vencido": recomeça
+  await new Promise((r) => setTimeout(r, 30));
+  assert.notEqual(waFake.client, before);
+  assert.equal(webStatus(ch.id).state, 'qr');
+  await stopAllWeb();
+});
