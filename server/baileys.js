@@ -6,7 +6,39 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 
-const silent = { level: 'silent', child() { return silent; }, trace() {}, debug() {}, info() {}, warn() {}, error() {}, fatal() {} };
+// Registro do Baileys: só avisos e erros, numa linha curta e no máximo 1 igual por minuto (o padrão despejava centenas por segundo).
+const lastLog = new Map();
+function short(args) {
+  const parts = [];
+  for (const a of args) {
+    if (typeof a === 'string') parts.push(a);
+    else if (a && typeof a === 'object') {
+      const e = a.err || a.error || (a instanceof Error ? a : null);
+      if (e?.message) parts.push(e.message);
+      if (a.key?.remoteJid) parts.push(String(a.key.remoteJid).replace(/^\d+(?=\d{4}@)/, '…'));
+    }
+  }
+  return parts.join(' | ').slice(0, 300);
+}
+function say(level, args) {
+  const text = short(args);
+  if (!text) return;
+  const t = Date.now();
+  if (t - (lastLog.get(text) || 0) < 60e3) return;
+  lastLog.set(text, t);
+  if (lastLog.size > 500) lastLog.clear();
+  console.warn(`whatsapp (motor) ${level}: ${text}`);
+}
+const silent = { level: 'warn', child() { return silent; }, trace() {}, debug() {}, info() {},
+  warn(...a) { say('aviso', a); }, error(...a) { say('erro', a); }, fatal(...a) { say('erro grave', a); } };
+
+// A biblioteca de criptografia (libsignal) escreve no console a sessão inteira, com chaves, a cada mensagem nova.
+// Isso enchia o registro do servidor (limite de 500 linhas/s) e não pode ir para o registro: corta essas linhas.
+const SIGNAL_NOISE = /^(Closing session|Closing open session|Removing old closed session|Decrypted message with closed session|Migrating session to|Session already|Opening session)/;
+for (const fn of ['log', 'info', 'warn', 'error']) {
+  const orig = console[fn].bind(console);
+  console[fn] = (...a) => { if (typeof a[0] === 'string' && SIGNAL_NOISE.test(a[0])) return; orig(...a); };
+}
 const toC = (jid) => String(jid || '').replace(/@s\.whatsapp\.net$/, '@c.us'); // formato que o resto do CRM usa
 const toS = (jid) => String(jid || '').replace(/@c\.us$/, '@s.whatsapp.net'); // formato do Baileys
 const userOf = (jid) => String(jid || '').split('@')[0].split(':')[0];
@@ -110,6 +142,7 @@ export class Client extends EventEmitter {
     if (u.connection !== 'close') return;
     const code = u.lastDisconnect?.error?.output?.statusCode;
     const R = B.DisconnectReason || {};
+    console.log(`whatsapp (motor): conexão fechou (código ${code ?? '?'}: ${String(u.lastDisconnect?.error?.message || '').slice(0, 120)})`);
     if (code === R.loggedOut || code === R.badSession) {
       // O celular desconectou o aparelho (ou o login guardado não vale mais): apaga e mostra QR novo.
       try { fs.rmSync(this.auth.dir, { recursive: true, force: true }); } catch {}
@@ -147,17 +180,27 @@ export class Client extends EventEmitter {
     const lastOwn = {};
     for (const wm of messages) if (wm.key?.fromMe) lastOwn[wm.key.remoteJid] = Math.max(lastOwn[wm.key.remoteJid] || 0, secs(wm.messageTimestamp));
     for (const wm of messages) {
-      if (!wm.message || !wm.key?.remoteJid) continue;
-      const alt = wm.key.remoteJidAlt || wm.key.senderPn || wm.key.participantAlt;
-      if (wm.key.remoteJid.endsWith('@lid') && /@s\.whatsapp\.net$/.test(alt || '')) this.lids.set(wm.key.remoteJid, toC(alt));
-      const msg = this.wrap(sock, wm, me);
-      const age = Date.now() / 1000 - msg.timestamp;
-      if (age > 24 * 3600) continue; // histórico antigo não entra
-      if (msg.fromMe) { this.emit('message_create', msg); continue; }
-      if (type !== 'notify' && type !== 'append') continue;
-      msg._noFlow = msg.timestamp <= (lastOwn[wm.key.remoteJid] || 0);
-      this.emit('message', msg);
+      try { this.onOne(sock, wm, me, type, lastOwn); } catch (e) { say('erro', [`mensagem recebida não processada (${type})`, e]); }
     }
+  }
+
+  onOne(sock, wm, me, type, lastOwn) {
+    const jid = wm.key?.remoteJid || '';
+    if (!wm.key?.fromMe && !/@(g\.us|broadcast|newsletter)$/.test(jid)) {
+      // Diagnóstico: uma linha por mensagem recebida (sem número nem texto).
+      const d = wm.message ? describe(wm) : null;
+      console.log(`whatsapp (motor): chegou mensagem ${type} de ${jid.split('@')[1] || '?'}: ${d ? d.type : `SEM CONTEÚDO (aviso ${wm.messageStubType ?? '?'}${wm.messageStubParameters?.length ? `: ${String(wm.messageStubParameters[0]).slice(0, 120)}` : ''})`}`);
+    }
+    if (!wm.message || !jid) return;
+    const alt = wm.key.remoteJidAlt || wm.key.senderPn || wm.key.participantAlt;
+    if (jid.endsWith('@lid') && /@s\.whatsapp\.net$/.test(alt || '')) this.lids.set(jid, toC(alt));
+    const msg = this.wrap(sock, wm, me);
+    const age = Date.now() / 1000 - msg.timestamp;
+    if (age > 24 * 3600) return; // histórico antigo não entra
+    if (msg.fromMe) { this.emit('message_create', msg); return; }
+    if (type !== 'notify' && type !== 'append') return;
+    msg._noFlow = msg.timestamp <= (lastOwn[jid] || 0);
+    this.emit('message', msg);
   }
 
   async getNumberId(digits) {
