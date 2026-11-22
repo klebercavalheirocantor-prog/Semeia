@@ -21,7 +21,9 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 # Motor do WhatsApp sem navegador (WA_ENGINE=baileys). Fica fora do package.json para não mexer no PC;
 # para voltar ao motor antigo, troque WA_ENGINE para wwebjs nas variáveis do Railway.
-RUN npm install --omit=dev --no-save --no-audit --no-fund @whiskeysockets/baileys@^6.7.19
+# Versão 7: a 6.7 não decifrava mensagens de contato novo (id interno "@lid", ex.: quem clica no anúncio) e
+# elas sumiam ("failed to decrypt message"); a 7 pede o reenvio ao remetente. Versão exata para não mudar sozinha.
+RUN npm install --omit=dev --no-save --no-audit --no-fund @whiskeysockets/baileys@7.0.0-rc14
 COPY . .
 
 # /data é o volume do Railway: banco, arquivos e a sessão do WhatsApp ficam lá e sobrevivem às atualizações.
