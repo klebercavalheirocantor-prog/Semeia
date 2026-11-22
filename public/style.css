@@ -340,15 +340,21 @@ code.copy { background: var(--c-surface-2); border: 1px solid var(--c-border); b
 .fl-palette { display: flex; flex-direction: column; gap: 6px; padding: var(--s-3); background: var(--c-surface); border-right: 1px solid var(--c-border); overflow-y: auto; }
 .fl-pal { display: flex; align-items: center; gap: 8px; text-align: left; font: inherit; font-size: var(--fs-sm); padding: 7px 8px; border-radius: var(--r-2); border: 1px solid var(--c-border); background: var(--c-surface); cursor: pointer; border-left: 4px solid var(--tone); }
 .fl-pal:hover { background: var(--c-surface-2); }
-.fl-canvas { overflow: auto; position: relative; background-color: var(--c-bg); background-image: radial-gradient(var(--c-border-strong) 1px, transparent 1px); background-size: 20px 20px; touch-action: none; }
-.fl-world { position: relative; }
+.fl-stage { position: relative; min-width: 0; min-height: 0; }
+.fl-stage > .fl-canvas { position: absolute; inset: 0; }
+.fl-zoom { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 4px; z-index: 2; }
+.fl-zoom .btn { min-width: 40px; min-height: 36px; padding: 4px 8px; background: var(--c-surface); box-shadow: var(--shadow-1); }
+.fl-sizer { position: relative; }
+.fl-world { transform-origin: 0 0; }
+.fl-canvas { cursor: grab; overflow: auto; position: relative; background-color: var(--c-bg); background-image: radial-gradient(var(--c-border-strong) 1px, transparent 1px); background-size: 20px 20px; touch-action: none; }
+.fl-world { position: absolute; left: 0; top: 0; }
 .fl-edges { position: absolute; inset: 0; overflow: visible; }
 .fl-edge .hit { stroke: transparent; stroke-width: 14; fill: none; cursor: pointer; }
 .fl-edge .line { stroke: #8a94a6; stroke-width: 2; fill: none; pointer-events: none; }
 .fl-edge.on .line, .fl-edge:hover .line { stroke: var(--c-primary); stroke-width: 3; }
 .fl-arrowhead { fill: #8a94a6; }
 .fl-temp { stroke: var(--c-primary); stroke-width: 2; stroke-dasharray: 6 4; fill: none; }
-.fl-node { position: absolute; background: var(--c-surface); border: 1px solid var(--c-border-strong); border-radius: var(--r-2); box-shadow: var(--shadow-1); display: flex; flex-direction: column; user-select: none; }
+.fl-node { cursor: default; position: absolute; background: var(--c-surface); border: 1px solid var(--c-border-strong); border-radius: var(--r-2); box-shadow: var(--shadow-1); display: flex; flex-direction: column; user-select: none; }
 .fl-node.sel { box-shadow: var(--focus); border-color: var(--c-primary); }
 .fl-node.cur { outline: 3px solid var(--c-ok); outline-offset: 2px; }
 .fl-head { height: 34px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; font-weight: 600; font-size: var(--fs-sm); cursor: grab; border-radius: var(--r-2) var(--r-2) 0 0; border-top: 4px solid var(--tone); background: var(--c-surface-2); }
@@ -357,6 +363,8 @@ code.copy { background: var(--c-surface-2); border: 1px solid var(--c-border); b
 .fl-port-row { height: 26px; flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-right: 2px; font-size: var(--fs-xs); border-top: 1px dashed var(--c-border); position: relative; }
 .fl-port { width: 14px; height: 14px; border-radius: 50%; background: var(--c-surface); border: 2px solid var(--tone); position: relative; right: -9px; cursor: crosshair; }
 .fl-port:hover { background: var(--tone); }
+.fl-port::before { content: ''; position: absolute; inset: -10px; border-radius: 50%; }
+@media (pointer: coarse) { .fl-port::before { inset: -16px; } }
 .fl-in { position: absolute; left: -7px; top: 10px; width: 12px; height: 12px; border-radius: 50%; background: var(--c-surface); border: 2px solid #8a94a6; }
 .tone-green { --tone: #1baf7a; } .tone-blue { --tone: #2a78d6; } .tone-purple { --tone: #7c4dff; } .tone-orange { --tone: #e08a00; } .tone-red { --tone: #e34948; } .tone-gray { --tone: #8a94a6; }
 .fl-side { background: var(--c-surface); border-left: 1px solid var(--c-border); overflow-y: auto; display: flex; flex-direction: column; }

@@ -159,6 +159,7 @@ export function FlowPage({ id }) {
 function Help() {
   return html`<div class="pad col small" style="gap:10px"><h3>Como montar</h3>
     <p>Arraste os blocos pelo título. Para ligar, puxe a bolinha da direita de uma saída até o bloco seguinte.</p>
+    <p>Para mover a tela, arraste o fundo. Zoom: dois dedos no celular, Ctrl + rodinha no computador, ou os botões − + e "Ajustar".</p>
     <p>Clique num bloco para editar o texto, os botões ou o tempo. Clique numa linha para removê-la. A tecla Delete apaga o que estiver selecionado.</p>
     <p><strong>Pergunta</strong> espera o cliente: cada botão vira uma saída, e há saída para "outra resposta" e "sem resposta" (prazo).</p>
     <p><strong>IA responde</strong> usa a base de Ajustes › Assistente de IA e passa para humano quando o cliente quer fechar ou pergunta algo que não está lá.</p>
@@ -169,19 +170,54 @@ function Help() {
 function Palette({ onAdd }) {
   const add = (type) => {
     const c = document.querySelector('.fl-canvas');
-    onAdd(type, { x: Math.round(((c?.scrollLeft || 0) + (c?.clientWidth || 600) / 2 - W / 2) / 10) * 10, y: Math.round(((c?.scrollTop || 0) + 80 + Math.random() * 120) / 10) * 10 });
+    const z = Number(c?.dataset.zoom) || 1;
+    onAdd(type, { x: Math.max(0, Math.round((((c?.scrollLeft || 0) + (c?.clientWidth || 600) / 2) / z - W / 2) / 10) * 10), y: Math.round(((c?.scrollTop || 0) / z + 80 + Math.random() * 120) / 10) * 10 });
   };
   return html`<nav class="fl-palette" aria-label="Blocos"><div class="xs muted">Adicionar bloco</div>
     ${Object.entries(TYPES).filter(([t]) => t !== 'start').map(([t, v]) => html`<button class=${`fl-pal tone-${v.tone}`} title=${v.hint} onClick=${() => add(t)}><span aria-hidden="true">${v.icon}</span>${v.label}</button>`)}</nav>`;
 }
 
+const ZMIN = 0.3, ZMAX = 2;
+const clampZ = (z) => Math.min(ZMAX, Math.max(ZMIN, Math.round(z * 100) / 100));
+
+// Tela do fluxo. Funciona com mouse e com o dedo:
+// arrastar o fundo = mover a tela; dois dedos (ou Ctrl + rodinha) = zoom;
+// arrastar o título do bloco = mover o bloco; puxar a bolinha = ligar.
 function Canvas({ graph, setGraph, sel, setSel, current }) {
-  const world = useRef(null);
+  const box = useRef(null), sizer = useRef(null), world = useRef(null);
+  const [zoom, setZoom] = useState(1);
+  const zr = useRef(1);            // zoom atual (para os eventos)
+  const touches = useRef(new Map()); // dedos/ponteiros na tela
+  const pinch = useRef(null);
+  const cancel = useRef(null);     // cancela arrasto/ligação em andamento
   const [link, setLink] = useState(null); // ligação sendo puxada
-  const pt = (e) => { const r = world.current.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const pt = (e) => { const r = world.current.getBoundingClientRect(); return { x: (e.clientX - r.left) / zr.current, y: (e.clientY - r.top) / zr.current }; };
   const byId = Object.fromEntries(graph.nodes.map((n) => [n.id, n]));
   const maxX = Math.max(1400, ...graph.nodes.map((n) => n.x + W + 300));
   const maxY = Math.max(800, ...graph.nodes.map((n) => n.y + height(n) + 300));
+  const size = useRef({ maxX, maxY }); size.current = { maxX, maxY };
+
+  // Troca o zoom mantendo parado o ponto (mx, my) da tela.
+  // `at` (opcional) = ponto do desenho que deve ficar embaixo de (mx, my).
+  const applyZoom = (z, mx, my, at) => {
+    const b = box.current; if (!b) return;
+    const z0 = zr.current; z = clampZ(z);
+    if (mx === undefined) { mx = b.clientWidth / 2; my = b.clientHeight / 2; }
+    const cx = at ? at.x : (b.scrollLeft + mx) / z0, cy = at ? at.y : (b.scrollTop + my) / z0;
+    zr.current = z;
+    sizer.current.style.width = `${size.current.maxX * z}px`; sizer.current.style.height = `${size.current.maxY * z}px`;
+    world.current.style.transform = `scale(${z})`;
+    b.scrollLeft = cx * z - mx; b.scrollTop = cy * z - my;
+    setZoom(z);
+  };
+  const fit = () => {
+    const b = box.current; if (!b || !graph.nodes.length) return;
+    const x0 = Math.min(...graph.nodes.map((n) => n.x)) - 30, y0 = Math.min(...graph.nodes.map((n) => n.y)) - 30;
+    const x1 = Math.max(...graph.nodes.map((n) => n.x + W)) + 40, y1 = Math.max(...graph.nodes.map((n) => n.y + height(n))) + 30;
+    applyZoom(Math.min(1, b.clientWidth / (x1 - x0), b.clientHeight / (y1 - y0)), 0, 0);
+    b.scrollLeft = x0 * zr.current; b.scrollTop = y0 * zr.current;
+  };
+  useEffect(() => { if (innerWidth < 900) fit(); }, []);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -193,34 +229,81 @@ function Canvas({ graph, setGraph, sel, setSel, current }) {
     return () => removeEventListener('keydown', onKey);
   }, [sel, graph]);
 
+  // Dois dedos: zoom de pinça.
+  useEffect(() => {
+    const dist = () => { const [a, b] = [...touches.current.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
+    const mid = () => { const [a, b] = [...touches.current.values()]; const r = box.current.getBoundingClientRect(); return { x: (a.x + b.x) / 2 - r.left, y: (a.y + b.y) / 2 - r.top }; };
+    const move = (e) => {
+      if (!touches.current.has(e.pointerId)) return;
+      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const p = pinch.current;
+      if (!p || touches.current.size < 2) return;
+      const m = mid(); // o ponto do desenho que estava entre os dedos acompanha os dedos (zoom + arrastar)
+      applyZoom(p.z0 * dist() / p.d0, m.x, m.y, p.at);
+    };
+    const up = (e) => { touches.current.delete(e.pointerId); if (touches.current.size < 2) pinch.current = null; };
+    addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+    box.current._startPinch = () => {
+      cancel.current?.();
+      const m = mid(), b = box.current, z0 = zr.current;
+      pinch.current = { d0: dist(), z0, at: { x: (b.scrollLeft + m.x) / z0, y: (b.scrollTop + m.y) / z0 } };
+    };
+    return () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); };
+  }, []);
+
+  // Acompanha um ponteiro até soltar (só aquele dedo; para se virar pinça).
+  const follow = (e, onMove, onUp) => {
+    const id = e.pointerId;
+    const move = (ev) => { if (ev.pointerId === id && !pinch.current) onMove(ev); };
+    const stop = (ev, cancelled) => { if (ev && ev.pointerId !== id) return; removeEventListener('pointermove', move); removeEventListener('pointerup', stop); removeEventListener('pointercancel', stop); cancel.current = null; onUp?.(ev, cancelled || ev?.type === 'pointercancel'); };
+    addEventListener('pointermove', move); addEventListener('pointerup', stop); addEventListener('pointercancel', stop);
+    cancel.current = () => stop(null, true);
+  };
+  const onDownCapture = (e) => {
+    touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.current.size === 2) { e.stopPropagation(); box.current._startPinch(); }
+  };
+  const isBg = (t) => t === box.current || t === sizer.current || t === world.current || t.tagName === 'svg';
+  const startPan = (e) => {
+    if (!isBg(e.target) || e.button !== 0 || pinch.current) return;
+    setSel(null);
+    const b = box.current, x0 = e.clientX, y0 = e.clientY, sl = b.scrollLeft, st = b.scrollTop;
+    follow(e, (ev) => { b.scrollLeft = sl - (ev.clientX - x0); b.scrollTop = st - (ev.clientY - y0); });
+  };
+  const onWheel = (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    const r = box.current.getBoundingClientRect();
+    applyZoom(zr.current * Math.exp(-e.deltaY * 0.01), e.clientX - r.left, e.clientY - r.top);
+  };
+
   const startDrag = (e, n) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || pinch.current) return;
     e.preventDefault();
     setSel({ node: n.id });
     const p0 = pt(e), ox = p0.x - n.x, oy = p0.y - n.y;
-    const move = (ev) => { const p = pt(ev); const x = Math.max(0, Math.round((p.x - ox) / 10) * 10), y = Math.max(0, Math.round((p.y - oy) / 10) * 10);
-      setGraph((g) => ({ ...g, nodes: g.nodes.map((m) => (m.id === n.id ? { ...m, x, y } : m)) })); };
-    const stop = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', stop); };
-    addEventListener('pointermove', move); addEventListener('pointerup', stop);
+    follow(e, (ev) => { const p = pt(ev); const x = Math.max(0, Math.round((p.x - ox) / 10) * 10), y = Math.max(0, Math.round((p.y - oy) / 10) * 10);
+      setGraph((g) => ({ ...g, nodes: g.nodes.map((m) => (m.id === n.id ? { ...m, x, y } : m)) })); });
   };
   const startLink = (e, n, port, i) => {
+    if (pinch.current) return;
     e.preventDefault(); e.stopPropagation();
     const from = { x: n.x + W, y: portY(n, i) };
     setLink({ from, to: from });
-    const move = (ev) => setLink({ from, to: pt(ev) });
-    const stop = (ev) => {
-      removeEventListener('pointermove', move); removeEventListener('pointerup', stop);
+    follow(e, (ev) => setLink({ from, to: pt(ev) }), (ev, cancelled) => {
       setLink(null);
+      if (cancelled || !ev) return;
       const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-node]')?.dataset.node;
       if (!target || target === n.id || byId[target]?.type === 'start') return;
       setGraph((g) => ({ ...g, edges: [...g.edges.filter((x) => !(x.from === n.id && x.port === port)), { from: n.id, port, to: target }] }));
-    };
-    addEventListener('pointermove', move); addEventListener('pointerup', stop);
+    });
   };
   const curve = (a, b) => { const dx = Math.max(50, Math.abs(b.x - a.x) / 2); return `M${a.x},${a.y} C${a.x + dx},${a.y} ${b.x - dx},${b.y} ${b.x},${b.y}`; };
 
-  return html`<div class="fl-canvas" onPointerDown=${(e) => { if (e.target === world.current || e.target.tagName === 'svg') setSel(null); }}>
-    <div class="fl-world" ref=${world} style=${`width:${maxX}px;height:${maxY}px`}>
+  return html`<div class="fl-stage">
+    <div class="fl-canvas" ref=${box} data-zoom=${zoom} onPointerDownCapture=${onDownCapture} onPointerDown=${startPan} onWheel=${onWheel}>
+    <div class="fl-sizer" ref=${sizer} style=${`width:${maxX * zoom}px;height:${maxY * zoom}px`}>
+    <div class="fl-world" ref=${world} style=${`width:${maxX}px;height:${maxY}px;transform:scale(${zoom})`}>
       <svg width=${maxX} height=${maxY} class="fl-edges">
         ${graph.edges.map((ed, i) => {
           const a = byId[ed.from], b = byId[ed.to];
@@ -229,7 +312,7 @@ function Canvas({ graph, setGraph, sel, setSel, current }) {
           if (pi < 0) return null;
           const d = curve({ x: a.x + W, y: portY(a, pi) }, { x: b.x, y: b.y + HEAD / 2 });
           const on = sel?.edge === i;
-          return html`<g class=${`fl-edge ${on ? 'on' : ''}`} onPointerDown=${(e) => { e.stopPropagation(); setSel({ edge: i }); }}>
+          return html`<g class=${`fl-edge ${on ? 'on' : ''}`} onPointerDown=${(e) => { if (pinch.current) return; e.stopPropagation(); setSel({ edge: i }); }}>
             <path d=${d} class="hit" /><path d=${d} class="line" marker-end="url(#fl-arrow)" /></g>`;
         })}
         ${link && html`<path d=${curve(link.from, link.to)} class="fl-temp" />`}
@@ -247,7 +330,14 @@ function Canvas({ graph, setGraph, sel, setSel, current }) {
             <span class="fl-port" title="Puxe até o próximo bloco" onPointerDown=${(e) => startLink(e, n, p, i)}></span></div>`)}
         </div>`;
       })}
-    </div></div>`;
+    </div></div></div>
+    <div class="fl-zoom" role="group" aria-label="Zoom">
+      <button class="btn" title="Diminuir" aria-label="Diminuir" onClick=${() => applyZoom(zr.current / 1.25)}>−</button>
+      <button class="btn" title="Tamanho normal" onClick=${() => applyZoom(1)}>${Math.round(zoom * 100)}%</button>
+      <button class="btn" title="Aumentar" aria-label="Aumentar" onClick=${() => applyZoom(zr.current * 1.25)}>+</button>
+      <button class="btn" title="Mostrar o fluxo inteiro" onClick=${fit}>Ajustar</button>
+    </div>
+  </div>`;
 }
 
 function NodeEditor({ node, stages, onChange, onDelete }) {
