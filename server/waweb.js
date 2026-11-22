@@ -15,8 +15,14 @@ let echoDelay = 3000;
 export function setWaLib(fake, opts = {}) { lib = fake; echoDelay = opts.echoDelay ?? echoDelay; } // testes usam um WhatsApp falso
 async function loadLib() {
   if (lib) return lib;
-  const m = await import('whatsapp-web.js');
   const qrcode = (await import('qrcode')).default;
+  // Na nuvem (WA_ENGINE=baileys) usa o motor sem navegador: o login volta sozinho ao reiniciar. No PC, o whatsapp-web.js.
+  if (process.env.WA_ENGINE === 'baileys') {
+    const b = await import('./baileys.js');
+    lib = { Client: b.Client, LocalAuth: b.LocalAuth, MessageMedia: b.MessageMedia, toDataURL: (s) => qrcode.toDataURL(s, { margin: 1, width: 300 }) };
+    return lib;
+  }
+  const m = await import('whatsapp-web.js');
   const w = m.default || m;
   // No Windows o Chrome segura os arquivos da sessão: apagar a pasta no "deslogou" dá EBUSY e a biblioteca derrubava o CRM.
   // Aqui o erro só é anotado; a pasta velha é apagada na próxima vez que o canal ligar, antes de abrir o Chrome.
@@ -98,7 +104,8 @@ export async function startWeb(channel) {
   sessions.set(channel.id, s);
   cleanStale(channel.id);
   // Diagnóstico: o login guardado existia ao abrir? (se existia e mesmo assim pediu QR, o WhatsApp recusou a sessão)
-  const hadSession = fs.existsSync(path.join(DATA_DIR, 'whatsapp-web', `session-canal${channel.id}`, 'Default', 'IndexedDB'));
+  const hadSession = fs.existsSync(path.join(DATA_DIR, 'whatsapp-web', `session-canal${channel.id}`, 'Default', 'IndexedDB'))
+    || fs.existsSync(path.join(DATA_DIR, 'whatsapp-web', `baileys-canal${channel.id}`, 'creds.json'));
   let qrLogged = false;
   const set = (p) => { Object.assign(s, p); emit('waweb', { channel_id: channel.id }); };
   const client = new L.Client({
@@ -135,7 +142,7 @@ export async function startWeb(channel) {
     set({ state: 'off', qr: null, error: reason ? `Desconectado (${reason})` : 'Desconectado' });
     retryLater(channel, `caiu (${reason || 'sem motivo'})`);
   });
-  client.on('message', (msg) => onIncoming(channel.id, msg).catch((e) => console.error('whatsapp web: mensagem', e)));
+  client.on('message', (msg) => onIncoming(channel.id, msg, { noFlow: !!msg._noFlow }).catch((e) => console.error('whatsapp web: mensagem', e)));
   // Mensagens que você manda pelo celular: aparecem no CRM e fazem o robô sair da conversa.
   client.on('message_create', (msg) => { if (msg.fromMe) setTimeout(() => onOwn(channel.id, msg).catch((e) => console.error('whatsapp web: eco', e)), echoDelay); });
   client.on('message_ack', (msg, ack) => {
@@ -159,7 +166,10 @@ export async function stopWeb(channelId, { logout = false } = {}) {
   // Desconectar = começar do zero: com a página travada o logout da biblioteca não apaga a sessão, então apaga aqui (Chrome já fechado).
   if (logout) {
     const dir = path.join(DATA_DIR, 'whatsapp-web', `session-canal${channelId}`);
-    try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 }); fs.rmSync(`${dir}.limpar`, { force: true }); }
+    try {
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 }); fs.rmSync(`${dir}.limpar`, { force: true });
+      fs.rmSync(path.join(DATA_DIR, 'whatsapp-web', `baileys-canal${channelId}`), { recursive: true, force: true });
+    }
     catch (e) { console.error('whatsapp web: não deu para apagar a sessão', e.message); }
   }
   emit('waweb', { channel_id: channelId });
