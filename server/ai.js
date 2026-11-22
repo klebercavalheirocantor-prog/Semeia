@@ -77,3 +77,42 @@ Responda APENAS com JSON: {"classe": "nome_da_classe"}`;
   const name = String(j?.classe || '').trim();
   return classes.some((c) => c.name === name) ? name : 'outro';
 }
+
+// Atendente da campanha: entende a resposta, conversa e escolhe qual TABELA (imagem) mandar. Nunca digita preço.
+// items: [{ name, keywords }]; sent: nomes das tabelas já mandadas. Devolve { reply, tables, action, reason }.
+export async function aiAgent(history, { items = [], contactName = '', brandId = 1, sent = [] } = {}) {
+  const { cfg, persona } = base(brandId);
+  const tables = items.map((it) => `- ${it.name}${(it.keywords || []).length ? ` (o cliente pode escrever: ${it.keywords.join(', ')})` : ''}`).join('\n');
+  const system = `${persona}
+O cliente recebeu nossa mensagem oferecendo sinal de correção para piloto automático (John Deere e Trimble) e está respondendo no WhatsApp.
+Seu objetivo: descobrir o modelo da antena e/ou do monitor dele para mandar a TABELA DE PREÇO certa.
+Escreva em português do Brasil como uma pessoa no WhatsApp: curto (no máximo 2 frases), simpático, sem parecer robô${contactName ? `; chame pelo primeiro nome (${contactName}) só quando soar natural` : ''}.
+Regras:
+- NUNCA escreva preço, valor, desconto exato, prazo ou condição que não esteja na base de conhecimento. O preço está nas tabelas (imagens): você só escolhe qual mandar.
+- Escolha tabela só quando a conversa deixar claro um modelo (antena ou monitor) que bate com ela; no máximo 2. Com tabela, "resposta" vira a legenda da imagem (ex.: "Segue a tabela da StarFire 6000 😊 Qual plano fica melhor pro senhor?").
+- Perguntou preço/valor sem dizer o modelo: peça o modelo da antena e do monitor (ou uma foto do monitor) de forma natural. Não comece com "Ótimo".
+- Disse que passou para outra pessoa (gerente, filho, sócio, operador): agradeça e peça o nome e o WhatsApp dessa pessoa para falar direto.
+- Não tem interesse, não usa piloto, pediu para parar ou é engano: agradeça com educação e use acao "encerrar".
+- Mandou foto, áudio ou vídeo ([mídia]), quer fechar/comprar/pagar, pediu para falar com alguém, reclamou, ou o modelo não bate com nenhuma tabela: diga que vai verificar e já retorna, e use acao "humano".
+- Mensagem automática (atendimento automático da empresa dele) ou só "ok"/"obrigado": resposta "" e acao "continuar".
+- Não repita uma pergunta com as mesmas palavras de antes.${sent.length ? `\n- Tabelas que você JÁ mandou nesta conversa (não mande de novo): ${sent.join(', ')}.` : ''}
+
+TABELAS DISPONÍVEIS (use o nome exato):
+${tables || '(nenhuma)'}
+
+BASE DE CONHECIMENTO:
+${cfg.knowledge || '(vazia)'}
+
+Responda APENAS com JSON: {"resposta": "texto ou vazio", "tabelas": ["nome exato"], "acao": "continuar" | "humano" | "encerrar", "motivo": "curto"}`;
+  const msgs = toMessages(history.slice(-14));
+  if (!msgs.length) return { reply: '', tables: [], action: 'continuar', reason: '' };
+  const j = parseJson(await claude({ system, messages: msgs, maxTokens: 400, brandId }));
+  if (!j) return { reply: '', tables: [], action: 'humano', reason: 'IA não respondeu no formato' };
+  const names = new Set(items.map((it) => it.name));
+  return {
+    reply: String(j.resposta || '').trim(),
+    tables: (Array.isArray(j.tabelas) ? j.tabelas : []).map(String).filter((n) => names.has(n)),
+    action: ['humano', 'encerrar'].includes(j.acao) ? j.acao : 'continuar',
+    reason: String(j.motivo || ''),
+  };
+}

@@ -1241,7 +1241,7 @@ app.patch('/api/flows/:id', (req, res) => {
   if (f.trigger === 'stage_changed' && !f.trigger_config?.stage_id) throw httpError(400, 'Escolha a etapa que dispara o fluxo');
   if (f.active) {
     const g = f.graph;
-    if (g.nodes.some((n) => ['ai_reply', 'ai_classify'].includes(n.type)) && !getSetting('ai', {}).api_key) throw httpError(400, 'Este fluxo usa IA: coloque a chave da Anthropic em Ajustes > Assistente de IA antes de ligar');
+    if (g.nodes.some((n) => ['ai_reply', 'ai_classify', 'ai_agent'].includes(n.type)) && !getSetting('ai', {}).api_key) throw httpError(400, 'Este fluxo usa IA: coloque a chave da Anthropic em Ajustes > Assistente de IA antes de ligar');
     const start = g.nodes.find((n) => n.type === 'start');
     if (!g.edges.some((e) => e.from === start.id)) throw httpError(400, 'Ligue o Início a algum passo antes de ativar');
   }
@@ -1278,7 +1278,7 @@ app.post('/api/flow-runs/:id/stop', (req, res) => {
   emit('flow', {});
   res.json({ ok: true });
 });
-app.get('/api/flows-meta', (req, res) => { admin(req); res.json({ ports: Object.fromEntries(['start', 'message', 'question', 'wait', 'ai_classify', 'ai_reply', 'stage', 'tag', 'handoff', 'end'].map((t) => [t, portsOf({ type: t })])) }); });
+app.get('/api/flows-meta', (req, res) => { admin(req); res.json({ ports: Object.fromEntries(['start', 'message', 'question', 'wait', 'ai_classify', 'ai_reply', 'ai_agent', 'stage', 'tag', 'handoff', 'end'].map((t) => [t, portsOf({ type: t })])) }); });
 app.post('/api/ai/test', async (req, res) => {
   admin(req);
   const text = await claude({ system: 'Responda só com: ok, funcionando', messages: [{ role: 'user', content: 'teste' }], maxTokens: 20, brandId: req.brand });

@@ -622,6 +622,58 @@ test('tabela por modelo: acha o modelo escrito de vários jeitos', async () => {
   assert.deepEqual(names('não sei, é verde'), []);
 });
 
+test('Atendente IA com tabelas: pede o modelo, pede o contato do gerente, manda a tabela certa e nunca outra', async () => {
+  (await import('../server/flows.js')).initFlows(); // cria o fluxo padrão com as 6 tabelas
+  const items = JSON.parse(one("select graph from flows where name like 'Resposta à campanha%' order by id limit 1").graph).nodes.find((n) => n.type === 'catalog').data.items;
+  const graph = { nodes: [
+    { id: 's', type: 'start', x: 0, y: 0, data: {} },
+    { id: 'ia', type: 'ai_agent', x: 0, y: 0, data: { items, max_turns: 6, timeout_hours: 1 } },
+    { id: 'h', type: 'handoff', x: 0, y: 0, data: {} },
+    { id: 'fim', type: 'end', x: 0, y: 0, data: {} },
+    { id: 'foto', type: 'question', x: 0, y: 0, data: { text: 'Se preferir, me manda uma foto do monitor 📷', timeout_hours: 20 } },
+  ], edges: [
+    { from: 's', port: 'next', to: 'ia' }, { from: 'ia', port: 'enviou', to: 'h' }, { from: 'ia', port: 'humano', to: 'h' },
+    { from: 'ia', port: 'encerrou', to: 'fim' }, { from: 'ia', port: 'sem resposta', to: 'foto' }, { from: 'foto', port: 'respondeu', to: 'ia' },
+  ] };
+  const sim = (sim_, action) => call('admin', 'POST', '/api/flows/simulate', { graph, sim: sim_, action }).then((r) => r.body);
+  // "Qual o preço??" -> pede o modelo, sem tabela
+  aiAnswers = ['{"resposta":"Pra te passar o valor certinho, qual o modelo da sua antena e do monitor?","tabelas":[],"acao":"continuar"}'];
+  let r = await sim(null, { type: 'start', text: 'Qual o preço??' });
+  assert.equal(r.out.at(-1).text, 'Pra te passar o valor certinho, qual o modelo da sua antena e do monitor?');
+  assert.ok(!r.out.some((m) => m.image));
+  assert.equal(r.sim.state, 'waiting_reply');
+  assert.match(anthropic.at(-1).body.system, /NUNCA escreva preço/);
+  assert.match(anthropic.at(-1).body.system, /Antena StarFire 6000/);
+  // "Passei para o meu gerente" -> pede o contato, continua
+  aiAnswers = ['{"resposta":"Perfeito! Me passa o nome e o WhatsApp dele que eu falo direto 😊","tabelas":[],"acao":"continuar"}'];
+  r = await sim(r.sim, { type: 'reply', text: 'Passei para o meu gerente cuidar.' });
+  assert.match(r.out.at(-1).text, /WhatsApp dele/);
+  assert.equal(r.sim.state, 'waiting_reply');
+  // diz o modelo -> manda só a tabela escolhida (a IA inventou uma que não existe: ignorada), frase como legenda, vai para humano
+  aiAnswers = ['{"resposta":"Segue a tabela da StarFire 6000 😊 Qual plano fica melhor?","tabelas":["Antena StarFire 6000","Tabela Inventada"],"acao":"continuar"}'];
+  r = await sim(r.sim, { type: 'reply', text: 'É uma starfire 6000' });
+  const imgs = r.out.filter((m) => m.image);
+  assert.equal(imgs.length, 1);
+  assert.equal(imgs[0].image, items.find((i) => i.name === 'Antena StarFire 6000').file_id);
+  assert.equal(imgs[0].text, 'Segue a tabela da StarFire 6000 😊 Qual plano fica melhor?');
+  assert.match(r.out.at(-1).text, /recebeu a tabela de Antena StarFire 6000/);
+  assert.equal(r.sim.state, 'handoff');
+  // sem interesse -> agradece e encerra, sem tarefa
+  aiAnswers = ['{"resposta":"Sem problema, obrigado pelo retorno! Qualquer coisa estamos à disposição.","tabelas":[],"acao":"encerrar"}'];
+  r = await sim(null, { type: 'start', text: 'Não tenho interesse' });
+  assert.match(r.out.at(-1).text, /obrigado pelo retorno/);
+  assert.equal(r.sim.state, 'done');
+  // sumiu 1 h -> pede a foto; respondeu -> volta para a IA
+  aiAnswers = ['{"resposta":"Qual o modelo da antena?","tabelas":[],"acao":"continuar"}'];
+  r = await sim(null, { type: 'start', text: 'Oi' });
+  r = await sim(r.sim, { type: 'timeout' });
+  assert.equal(r.out.at(-1).text, 'Se preferir, me manda uma foto do monitor 📷');
+  aiAnswers = ['{"resposta":"Recebi a foto! Vou verificar e já te passo o valor 😊","tabelas":[],"acao":"humano","motivo":"mandou foto"}'];
+  r = await sim(r.sim, { type: 'reply', text: '' });
+  assert.match(r.out.at(-1).text, /mandou foto/);
+  assert.equal(r.sim.state, 'handoff');
+});
+
 test('fluxo padrão: cliente diz o modelo, recebe a tabela com a frase e vai para humano', async () => {
   const { initFlows } = await import('../server/flows.js');
   initFlows();

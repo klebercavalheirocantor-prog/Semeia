@@ -7,6 +7,7 @@ const TYPES = {
   question: { label: 'Pergunta', icon: '❓', tone: 'blue', hint: 'Envia e espera a resposta do cliente' },
   catalog: { label: 'Tabela por modelo', icon: '📋', tone: 'blue', hint: 'Acha o modelo na resposta e manda a tabela de preço dele' },
   wait: { label: 'Esperar', icon: '⏱', tone: 'gray', hint: 'Dá um tempo antes do próximo passo' },
+  ai_agent: { label: 'Atendente IA com tabelas', icon: '🤖', tone: 'purple', hint: 'Entende a resposta, conversa e manda a tabela certa quando descobre o modelo (nunca digita preço)' },
   ai_reply: { label: 'IA responde', icon: '✨', tone: 'purple', hint: 'Responde dúvidas com a base de conhecimento' },
   ai_classify: { label: 'IA entende a intenção', icon: '🧭', tone: 'purple', hint: 'Escolhe um caminho pelo que o cliente quer' },
   stage: { label: 'Mover etapa', icon: '➜', tone: 'orange', hint: 'Move o lead no funil' },
@@ -27,10 +28,11 @@ function portsOf(n) {
     case 'ai_classify': return [...new Set((d.classes || []).map((c) => String(c.name || '').trim()).filter(Boolean)), 'outro'];
     case 'ai_reply': return ['humano', 'sem resposta'];
     case 'catalog': return ['enviou', 'nenhum'];
+    case 'ai_agent': return ['enviou', 'humano', 'encerrou', 'sem resposta'];
     default: return [];
   }
 }
-const portLabel = (n, p) => (p === 'next' ? 'depois' : p === 'enviou' ? 'mandou a tabela' : p === 'nenhum' ? 'não achou o modelo' : p === 'respondeu' && (n.data?.buttons || []).some(Boolean) ? 'outra resposta' : p === 'humano' ? 'passar p/ humano' : p);
+const portLabel = (n, p) => (p === 'next' ? 'depois' : p === 'enviou' ? 'mandou a tabela' : p === 'nenhum' ? 'não achou o modelo' : p === 'respondeu' && (n.data?.buttons || []).some(Boolean) ? 'outra resposta' : p === 'humano' ? 'passar p/ humano' : p === 'encerrou' ? 'sem interesse' : p);
 const height = (n) => HEAD + BODY + portsOf(n).length * PORT + 6;
 const portY = (n, i) => n.y + HEAD + BODY + i * PORT + PORT / 2;
 const stageName = (id) => { for (const p of B().pipelines) { const s = p.stages.find((x) => x.id === Number(id)); if (s) return `${p.name} › ${s.name}`; } return null; };
@@ -43,6 +45,7 @@ function summary(n) {
     case 'message': case 'question': return d.text || 'Escreva a mensagem…';
     case 'wait': return `Espera ${d.amount || 1} ${unitLabel[d.unit || 'h']}`;
     case 'ai_reply': return `Responde até ${d.max_turns || 5} vezes com a base de conhecimento`;
+    case 'ai_agent': return `${(d.items || []).length} tabela(s) · até ${d.max_turns || 6} respostas`;
     case 'ai_classify': return (d.classes || []).map((c) => c.name).filter(Boolean).join(' · ') || 'Defina as intenções';
     case 'catalog': return (d.items || []).map((i) => i.name).filter(Boolean).join(' · ') || 'Cadastre os modelos e as tabelas';
     case 'stage': return stageName(d.stage_id) || 'Escolha a etapa';
@@ -57,6 +60,7 @@ const DEFAULTS = {
   question: { text: '', buttons: [], timeout_hours: 20 },
   wait: { amount: 1, unit: 'h' },
   ai_reply: { max_turns: 4, timeout_hours: 20 },
+  ai_agent: { max_turns: 6, timeout_hours: 1, items: [] },
   ai_classify: { classes: [{ name: 'quer_comprar', description: 'quer preço, orçamento ou fechar negócio' }, { name: 'duvida', description: 'tem uma pergunta sobre o produto' }, { name: 'sem_interesse', description: 'não quer, já tem ou pediu para não mandar' }] },
   catalog: { text: 'Tenho esses planos, qual seria ideal para o senhor?', items: [] },
   stage: { stage_id: '' }, tag: { tag: '' }, handoff: { note: '' }, end: {},
@@ -373,6 +377,11 @@ function NodeEditor({ node, stages, onChange, onDelete }) {
       <button class="btn sm" onClick=${() => set('classes', [...(d.classes || []), { name: '', description: '' }])}>+ Intenção</button>
       <span class="xs muted">Se nenhuma servir, sai por "outro".</span></div>`}
     ${node.type === 'catalog' && html`<${CatalogEditor} d=${d} set=${set} />`}
+    ${node.type === 'ai_agent' && html`
+      <label class="field">Máximo de respostas da IA<input type="number" min="1" max="20" value=${d.max_turns ?? 6} onInput=${(e) => set('max_turns', Number(e.target.value))} /></label>
+      <label class="field">Se o cliente parar de responder, seguir por "sem resposta" em (horas)<input type="number" min="1" max="23" value=${d.timeout_hours ?? 1} onInput=${(e) => set('timeout_hours', Number(e.target.value))} /></label>
+      <p class="xs muted">A IA lê cada resposta: pede o modelo, pede o contato de quem vai cuidar, agradece quem não tem interesse e, quando descobre o modelo, manda a tabela dele (a frase dela vai de legenda). Preço ela nunca digita. O que ela sabe da empresa fica em <a href="#/settings/ai">Ajustes › Assistente de IA</a>.</p>
+      <${CatalogEditor} d=${d} set=${set} />`}
     ${node.type === 'stage' && html`<label class="field">Mover o lead para<select value=${String(d.stage_id || '')} onChange=${(e) => set('stage_id', Number(e.target.value))}>
       <option value="">— etapa —</option>${stages.map((s) => html`<option value=${String(s.id)}>${s.name}</option>`)}</select></label>`}
     ${node.type === 'tag' && html`<label class="field">Etiqueta<input list="fl-tags" value=${d.tag || ''} onInput=${(e) => set('tag', e.target.value)} /></label>

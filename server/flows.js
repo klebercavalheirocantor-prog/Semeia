@@ -4,7 +4,7 @@ import { one, all, run, now, getSetting, setSetting } from './db.js';
 import { emit } from './bus.js';
 import { sendMessage } from './meta.js';
 import { fillVars } from './outbound.js';
-import { aiReply, aiClassify } from './ai.js';
+import { aiReply, aiClassify, aiAgent } from './ai.js';
 import { logEvent, httpError } from './crm.js';
 import { saveFile } from './meta.js';
 import { UPLOAD_DIR } from './db.js';
@@ -24,6 +24,7 @@ export function portsOf(node) {
     case 'ai_classify': return [...new Set((d.classes || []).map((c) => String(c.name || '').trim()).filter(Boolean)), 'outro'];
     case 'ai_reply': return ['humano', 'sem resposta'];
     case 'catalog': return ['enviou', 'nenhum'];
+    case 'ai_agent': return ['enviou', 'humano', 'encerrou', 'sem resposta'];
     default: return []; // handoff, end
   }
 }
@@ -57,6 +58,7 @@ export function validateGraph(g) {
     if ((d.buttons || []).length > 3) throw httpError(400, 'O WhatsApp aceita no máximo 3 botões por mensagem');
     if ((d.buttons || []).some((b) => String(b).length > 20)) throw httpError(400, 'Cada botão tem no máximo 20 letras');
     if (n.type === 'stage' && !d.stage_id) throw httpError(400, 'Escolha a etapa no nó "Mover etapa"');
+    if (n.type === 'ai_agent' && (d.items || []).some((it) => !it.file_id || !String(it.name || '').trim())) throw httpError(400, 'No "Atendente IA", cada tabela precisa de nome e da imagem');
     if (n.type === 'catalog' && (d.items || []).some((it) => !it.file_id || !(it.keywords || []).some((k) => String(k).trim()))) {
       throw httpError(400, 'Na "Tabela por modelo", cada linha precisa de pelo menos um modelo e da imagem da tabela');
     }
@@ -92,6 +94,25 @@ async function execNode(node, io) {
       if (turns[node.id] >= (Number(d.max_turns) || 5)) { io.vars.handoff_reason = 'limite de respostas da IA'; return { port: 'humano' }; }
       return { wait: 'reply', ms: (Number(d.timeout_hours) || 20) * H };
     }
+    case 'ai_agent': {
+      // IA conversa até descobrir o modelo; quando descobre, manda a tabela (imagem) com a frase dela como legenda.
+      const turns = (io.vars.ai_turns ||= {});
+      turns[node.id] = (turns[node.id] || 0) + 1;
+      const sent = io.vars.models || [];
+      const r = await aiAgent(await io.history(), { items: d.items || [], contactName: io.firstName, brandId: io.brandId, sent });
+      const hits = (d.items || []).filter((it) => r.tables.includes(it.name) && !sent.includes(it.name)).slice(0, 2);
+      if (hits.length) {
+        for (const [i, h] of hits.entries()) await io.send(i === hits.length - 1 ? r.reply : '', [], h.file_id);
+        io.vars.models = [...sent, ...hits.map((h) => h.name)];
+        io.vars.handoff_reason = `recebeu a tabela de ${hits.map((h) => h.name).join(' e ')}`;
+        return { port: 'enviou' };
+      }
+      if (r.reply) await io.send(r.reply);
+      if (r.action === 'humano') { io.vars.handoff_reason = r.reason || 'a IA pediu ajuda'; return { port: 'humano' }; }
+      if (r.action === 'encerrar') { io.vars.handoff_reason = r.reason || 'sem interesse'; return { port: 'encerrou' }; }
+      if (turns[node.id] >= (Number(d.max_turns) || 6)) { io.vars.handoff_reason = 'a IA já respondeu várias vezes: veja a conversa'; return { port: 'humano' }; }
+      return { wait: 'reply', ms: (Number(d.timeout_hours) || 1) * H };
+    }
     case 'catalog': {
       // Manda a(s) tabela(s) dos modelos citados; a frase vai junto da última imagem.
       const hits = matchCatalog(d.items, io.vars.last_reply);
@@ -125,7 +146,7 @@ function replyPort(node, text) {
     const hit = btns.find((b) => String(b).trim().toLowerCase() === t) || (/^\d$/.test(t) ? btns[Number(t) - 1] : null);
     return { port: hit ? String(hit).trim() : 'respondeu' };
   }
-  if (node.type === 'ai_reply') return null; // executa o nó de novo: a IA responde a nova mensagem
+  if (node.type === 'ai_reply' || node.type === 'ai_agent') return null; // executa o nó de novo: a IA responde a nova mensagem
   return { port: 'respondeu' };
 }
 
