@@ -955,6 +955,14 @@ app.post('/api/waweb', async (req, res) => {
   res.json({ id: ch.id, ...(await startWeb(ch)) });
 });
 app.get('/api/waweb/:id', (req, res) => { admin(req); res.json(webStatus(Number(req.params.id))); });
+// Reabre só o WhatsApp (sem sair da conta e sem reiniciar o servidor): para destravar e para testar se o login guardado volta.
+app.post('/api/waweb/:id/restart', async (req, res) => {
+  admin(req);
+  const ch = one('select * from channels where id = ? and brand_id = ?', Number(req.params.id), req.brand);
+  if (!ch || !isWeb(ch)) throw httpError(404, 'Canal não encontrado');
+  await stopWeb(ch.id);
+  res.json(await startWeb(ch));
+});
 app.post('/api/waweb/:id/logout', async (req, res) => {
   admin(req);
   await stopWeb(Number(req.params.id), { logout: true });

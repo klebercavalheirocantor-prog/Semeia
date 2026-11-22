@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { execSync } from 'node:child_process';
 import { db, one, run, DATA_DIR } from './db.js';
 import { hashPassword } from './auth.js';
 import { app } from './app.js';
@@ -36,6 +37,8 @@ for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, async () => {
   console.log('Desligando: fechando o WhatsApp com calma...');
   setTimeout(() => process.exit(0), 12000).unref();
   await stopAllWeb().catch(() => {});
+  // Garante que o login do WhatsApp chegou ao disco antes de o servidor sumir (na nuvem o disco é desligado logo depois).
+  if (process.platform !== 'win32') { try { execSync('sync', { timeout: 5000 }); } catch {} }
   releaseOwner(); // o servidor novo (se houver) já pode abrir o WhatsApp
   console.log('WhatsApp fechado, sessão gravada.');
   process.exit(0);

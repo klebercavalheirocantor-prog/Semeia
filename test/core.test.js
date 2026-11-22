@@ -1112,3 +1112,16 @@ test('WhatsApp Web: marca de "apagar" antiga não apaga o login novo depois de c
   cleanStale(ch.id); // próximo reinício
   assert.ok(fs.existsSync(path.join(dir, 'Default')));
 });
+
+test('WhatsApp Web: reabrir só o WhatsApp sem sair da conta', async () => {
+  const ch = one("select id from channels where kind = 'whatsapp' and config like '%\"mode\":\"web\"%'");
+  await call('admin', 'POST', '/api/waweb');
+  let destroyed = 0, loggedOut = 0;
+  waFake.client.destroy = async () => { destroyed++; };
+  waFake.client.logout = async () => { loggedOut++; };
+  const r = await call('admin', 'POST', `/api/waweb/${ch.id}/restart`);
+  assert.equal(r.status, 200);
+  assert.equal(destroyed, 1);
+  assert.equal(loggedOut, 0);
+  assert.equal((await call('admin', 'POST', '/api/waweb/99999/restart')).status, 404);
+});

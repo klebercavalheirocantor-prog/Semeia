@@ -97,6 +97,9 @@ export async function startWeb(channel) {
   const s = { state: 'starting', qr: null, me: null, error: null, client: null };
   sessions.set(channel.id, s);
   cleanStale(channel.id);
+  // Diagnóstico: o login guardado existia ao abrir? (se existia e mesmo assim pediu QR, o WhatsApp recusou a sessão)
+  const hadSession = fs.existsSync(path.join(DATA_DIR, 'whatsapp-web', `session-canal${channel.id}`, 'Default', 'IndexedDB'));
+  let qrLogged = false;
   const set = (p) => { Object.assign(s, p); emit('waweb', { channel_id: channel.id }); };
   const client = new L.Client({
     authStrategy: new L.LocalAuth({ clientId: `canal${channel.id}`, dataPath: path.join(DATA_DIR, 'whatsapp-web') }),
@@ -105,11 +108,15 @@ export async function startWeb(channel) {
     puppeteer: { headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'], ...(process.env.CHROME_PATH && { executablePath: process.env.CHROME_PATH }) },
   });
   s.client = client;
+  client.on('change_state', (st) => console.log('whatsapp web: estado', st));
+  client.on('auth_failure', (m) => console.error('whatsapp web: login guardado recusado', m));
   client.on('qr', async (qr) => {
+    if (!qrLogged) { qrLogged = true; console.log(`whatsapp web: pediu QR (login guardado ao abrir: ${hadSession ? 'sim' : 'não'})`); }
     set({ state: 'qr', qr: await L.toDataURL(qr) });
     if (everReady.has(channel.id)) { everReady.delete(channel.id); alertAdmin('O WhatsApp do Semeia foi desconectado pelo celular.'); }
   });
   client.on('ready', () => {
+    console.log(`whatsapp web: conectado (${hadSession ? 'voltou com o login guardado' : 'login novo pelo QR'})`);
     const me = client.info?.wid?.user || null;
     set({ state: 'ready', qr: null, me, error: null, wasReady: true });
     failures.delete(channel.id); everReady.add(channel.id);
