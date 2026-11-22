@@ -20,6 +20,7 @@ setBaileys({
     const sock = {
       cfg, ev, sent: [], user: null, ended: false,
       onWhatsApp: async (n) => (n === '5567999990000' ? [] : [{ exists: true, jid: `${n.length === 13 ? n.slice(0, 4) + n.slice(5) : n}@s.whatsapp.net` }]),
+      resend: [], requestPlaceholderResend: async (key) => { sock.resend.push(key.id); },
       read: [], readMessages: async (keys) => { sock.read.push(...keys.map((k) => k.id)); },
       sendMessage: async (jid, payload) => { sock.sent.push({ jid, payload }); return { key: { id: `SENT${sock.sent.length}` }, message: { conversation: payload.text || '' } }; },
       logout: async () => {}, end: () => { sock.ended = true; },
@@ -65,6 +66,11 @@ test('motor sem navegador: QR, conecta, recebe, responde, status, cai e volta so
     { key: { remoteJid: '5567988883333@s.whatsapp.net', id: 'IN3', fromMe: false }, messageTimestamp: now(), message: { protocolMessage: { type: 0 } } },
     { key: { remoteJid: '5567988883333@s.whatsapp.net', id: 'OLD', fromMe: false }, messageTimestamp: now() - 3 * 86400, message: { conversation: 'velha' } },
   ] });
+  // só o aviso de "texto não veio" (sem conteúdo): pede ao celular principal e não vira mensagem vazia no CRM
+  s.ev.emit('messages.upsert', { type: 'notify', messages: [
+    { key: { remoteJid: '227616573390000@lid', id: 'STUB1', fromMe: false }, messageTimestamp: now(), messageStubType: 2, messageStubParameters: ['Message absent from node'] }] });
+  await wait(5);
+  assert.deepEqual(s.resend, ['STUB1']);
   const [m1, m2, m3] = ev.msg;
   assert.equal(ev.msg.length, 3); // a velha (3 dias) fica de fora
   assert.deepEqual([m1.from, m1.to, m1.body, m1.type, m1.id._serialized, m1._data.notifyName], ['5567988881111@c.us', '556799746861@c.us', 'Qual o preço??', 'chat', 'IN1', 'Carlos']);

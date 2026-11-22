@@ -190,7 +190,11 @@ export class Client extends EventEmitter {
     if (!wm.key?.fromMe && !/@(g\.us|broadcast|newsletter)$/.test(jid)) {
       // Diagnóstico: uma linha por mensagem recebida (sem número nem texto).
       const d = wm.message ? describe(wm) : null;
-      console.log(`whatsapp (motor): chegou mensagem ${type} de ${jid.split('@')[1] || '?'}: ${d ? d.type : `SEM CONTEÚDO (aviso ${wm.messageStubType ?? '?'}${wm.messageStubParameters?.length ? `: ${String(wm.messageStubParameters[0]).slice(0, 120)}` : ''})`}`);
+      console.log(`whatsapp (motor ${path.basename(this.auth.dir)}): chegou mensagem ${type} de ${jid.split('@')[1] || '?'}: ${d ? d.type : `SEM CONTEÚDO (aviso ${wm.messageStubType ?? '?'}${wm.messageStubParameters?.length ? `: ${String(wm.messageStubParameters[0]).slice(0, 120)}` : ''})`}`);
+      // "Message absent from node": o texto não veio para este aparelho; pede ao celular principal para reenviar o conteúdo.
+      if (!wm.message && /absent from node/i.test(String(wm.messageStubParameters?.[0] || '')) && typeof sock.requestPlaceholderResend === 'function') {
+        Promise.resolve().then(() => sock.requestPlaceholderResend(wm.key)).catch((e) => say('aviso', ['pedido de reenvio ao celular falhou', e]));
+      }
     }
     if (!wm.message || !jid) return;
     const alt = wm.key.remoteJidAlt || wm.key.senderPn || wm.key.participantAlt;
