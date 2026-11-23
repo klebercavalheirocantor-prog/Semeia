@@ -159,8 +159,10 @@ export async function startWeb(channel) {
   });
   client.initialize().catch((e) => {
     if (sessions.get(channel.id) !== s) return;
-    set({ state: 'error', error: e.message });
-    retryLater(channel, `não abriu (${e.message})`);
+    const why = e?.message || (typeof e === 'string' ? e : '') || (() => { try { return JSON.stringify(e); } catch { return String(e); } })() || 'erro sem descrição';
+    console.error('whatsapp web: falha ao abrir', e?.stack || why);
+    set({ state: 'error', error: why });
+    retryLater(channel, `não abriu (${why})`);
   });
   return webStatus(channel.id);
 }
