@@ -14,8 +14,8 @@ import { audienceCount, campaignStats, startCampaign, pauseCampaign } from './ca
 import { dashboard } from './dashboard.js';
 import { results, readInvestment } from './results.js';
 import { flowOnHuman, flowOnStage, validateGraph, simulate, portsOf } from './flows.js';
-import { claude, DEFAULT_MODEL } from './ai.js';
-import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr } from './waweb.js';
+import { claude, DEFAULT_MODEL, translateOut } from './ai.js';
+import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES } from './waweb.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 export const app = express();
@@ -130,6 +130,7 @@ function channelsPublic(brandId) {
     const cfg = JSON.parse(c.config);
     return { id: c.id, kind: c.kind, name: c.name, external_id: c.external_id, status: c.status, pipeline_id: cfg.pipeline_id || null, waba_id: cfg.waba_id || '', has_token: !!cfg.token,
       mode: cfg.mode === 'web' ? 'web' : c.kind === 'email' ? 'imap' : 'api', me: cfg.me || null,
+      ...(cfg.mode === 'web' ? { engine: engineOf(c), translate_to: cfg.translate_to || '' } : {}),
       ...(c.kind === 'email' ? { imap_host: cfg.imap_host || 'imap.gmail.com', has_pass: !!cfg.imap_pass, checked_at: cfg.checked_at || null, mail_error: cfg.mail_error || null } : {}) };
   });
 }
@@ -444,7 +445,7 @@ function loadLead(req, id) {
 app.get('/api/leads/:id', (req, res) => {
   const l = loadLead(req, Number(req.params.id));
   const contacts = all('select c.*, lc.is_main from lead_contacts lc join contacts c on c.id = lc.contact_id where lc.lead_id = ? and c.deleted_at is null order by lc.is_main desc, c.id', l.id).map(contactWithPoints);
-  const conversations = all(`select cv.id, cv.status, cv.last_inbound_at, cv.unread, ch.kind channel, ch.name channel_name from conversations cv join channels ch on ch.id = cv.channel_id
+  const conversations = all(`select cv.id, cv.channel_id, cv.status, cv.last_inbound_at, cv.unread, ch.kind channel, ch.name channel_name from conversations cv join channels ch on ch.id = cv.channel_id
     where cv.lead_id = ? order by cv.last_message_at desc`, l.id);
   res.json({
     ...l,
@@ -594,7 +595,7 @@ const leadsOf = (sql, id) => all(`select l.id, l.name, l.price_cents, l.stage_id
 
 app.get('/api/contacts/:id', (req, res) => {
   const c = loadEntity(req, 'contacts', Number(req.params.id));
-  const conversations = all('select cv.id, cv.status, ch.kind channel from conversations cv join channels ch on ch.id = cv.channel_id where cv.contact_id = ? order by cv.last_message_at desc', c.id);
+  const conversations = all('select cv.id, cv.channel_id, cv.status, ch.kind channel from conversations cv join channels ch on ch.id = cv.channel_id where cv.contact_id = ? order by cv.last_message_at desc', c.id);
   res.json({
     ...contactWithPoints(c),
     opt_out_at: one('select at from contact_optouts where contact_id = ? and brand_id = ?', c.id, req.brand)?.at ?? null,
@@ -848,10 +849,20 @@ app.post('/api/conversations/:id/messages', express.raw({ type: () => true, limi
     text = decodeURIComponent(req.get('x-caption') || '');
   }
   if (!text && !file) throw httpError(400, 'Mensagem vazia');
+  // Número com tradução ligada (ex.: Paraguai/Argentina): o atendente escreve em português e sai na língua do cliente.
+  let original = null;
+  const to = JSON.parse(channel.config || '{}').translate_to;
+  if (text && to) {
+    const customer = all("select body from messages where conversation_id = ? and direction = 'in' and body != '' order by id desc limit 3", c.id).map((m) => m.body).reverse();
+    try {
+      const t = await translateOut(text, { to, customer, brandId: channel.brand_id || 1 });
+      if (t && t !== text) { original = text; text = t; }
+    } catch (e) { throw httpError(502, `Não consegui traduzir agora (${e.message}). Tente de novo.`); }
+  }
   const fileId = file ? saveFile(file.buf, file.name, file.mime) : null;
   const kind = file ? (file.mime.startsWith('image/') ? 'image' : file.mime.startsWith('audio/') ? 'audio' : file.mime.startsWith('video/') ? 'video' : 'document') : 'text';
-  const mid = Number(run('insert into messages(conversation_id, direction, user_id, kind, body, file_id, status, created_at) values(?, ?, ?, ?, ?, ?, ?, ?)',
-    c.id, 'out', req.user.id, kind, text, fileId, 'pending', now()).lastInsertRowid);
+  const mid = Number(run('insert into messages(conversation_id, direction, user_id, kind, body, original_body, file_id, status, created_at) values(?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    c.id, 'out', req.user.id, kind, text, original, fileId, 'pending', now()).lastInsertRowid);
   run('update conversations set last_message_at = ?, unread = 0 where id = ?', now(), c.id);
   flowOnHuman(c.id); // uma pessoa respondeu: o robô para nesta conversa
   // Quem responde primeiro um lead sem dono vira o responsável.
@@ -966,6 +977,28 @@ app.post('/api/waweb/:id/restart', async (req, res) => {
   if (!ch || !isWeb(ch)) throw httpError(404, 'Canal não encontrado');
   await stopWeb(ch.id);
   res.json(await startWeb(ch));
+});
+// Opções do número: motor (troca = desconecta e pede QR novo) e tradução do que o atendente escreve.
+app.post('/api/waweb/:id/options', async (req, res) => {
+  admin(req);
+  const ch = one('select * from channels where id = ? and brand_id = ?', Number(req.params.id), req.brand);
+  if (!ch || !isWeb(ch)) throw httpError(404, 'Canal não encontrado');
+  const b = req.body || {};
+  const cfg = JSON.parse(ch.config);
+  if (b.translate_to !== undefined) {
+    if (!['', 'es', 'en'].includes(b.translate_to)) throw httpError(400, 'Idioma inválido');
+    cfg.translate_to = b.translate_to || undefined;
+  }
+  const newEngine = b.engine !== undefined && b.engine !== engineOf(ch);
+  if (newEngine) {
+    if (!ENGINES.includes(b.engine)) throw httpError(400, 'Motor inválido');
+    await stopWeb(ch.id, { logout: true }); // o login de um motor não serve no outro
+    cfg.engine = b.engine;
+  }
+  run('update channels set config = ? where id = ?', JSON.stringify(cfg), ch.id);
+  emit('config');
+  const fresh = one('select * from channels where id = ?', ch.id);
+  res.json(newEngine ? await startWeb(fresh) : { ok: true });
 });
 app.post('/api/waweb/:id/logout', async (req, res) => {
   admin(req);

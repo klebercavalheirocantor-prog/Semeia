@@ -35,6 +35,7 @@ export function Bubble({ m }) {
   const st = STATUS[m.status];
   return html`<div class="bubble ${m.direction} ${m.status === 'failed' ? 'failed' : ''}">
     ${media}${media && m.body ? html`<br />` : ''}${m.body}
+    ${m.original_body && html`<div class="small muted" style="margin-top:4px">🌐 traduzido · você escreveu: ${m.original_body}</div>`}
     <div class="meta">
       ${m.channel && html`<${Channel} kind=${m.channel} />`}
       ${m.kind === 'template' && html`<span>modelo ·</span>`}
@@ -256,6 +257,7 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
   const [markup, setMarkup] = useState(null); // foto escolhida, abrindo para riscar antes de mandar
   useEffect(() => { if (!conversations.find((c) => c.id === convId)) setConvId(open[0]?.id || conversations[0]?.id); }, [conversations.map((c) => c.id + c.status).join()]);
   const conv = conversations.find((c) => c.id === convId);
+  const trTo = B().channels.find((x) => x.id === conv?.channel_id)?.translate_to || '';
   const windowClosed = conv?.channel === 'whatsapp' && (!conv.last_inbound_at || Date.now() - conv.last_inbound_at > 24 * 3600e3);
 
   const send = async () => {
@@ -314,7 +316,7 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
       <${UserSelect} label="Responsável pela tarefa" none=${false} value=${task.responsible_id} onChange=${(v) => setTask({ ...task, responsible_id: v })} />
     </div>`}
     <textarea aria-label=${tab === 'msg' ? 'Mensagem' : tab === 'note' ? 'Nota' : 'Descrição da tarefa'} disabled=${tab === 'msg' && conv?.status === 'closed'}
-      placeholder=${tab === 'msg' ? 'Escreva para o cliente… (Ctrl+Enter envia)' : tab === 'note' ? 'Nota interna, o cliente não vê' : 'O que precisa ser feito?'}
+      placeholder=${tab === 'msg' ? (trTo ? `Escreva em português: vai traduzido para ${trTo === 'es' ? 'espanhol' : 'inglês'} (Ctrl+Enter envia)` : 'Escreva para o cliente… (Ctrl+Enter envia)') : tab === 'note' ? 'Nota interna, o cliente não vê' : 'O que precisa ser feito?'}
       value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(); }}></textarea>
     <div class="row">
       ${tab === 'msg' && html`<input type="file" ref=${fileRef} class="sr-only" id="file-${entityId}" onChange=${(e) => pickFile(e.target.files[0])} />

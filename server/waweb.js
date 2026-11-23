@@ -10,17 +10,26 @@ import { handleMessage, handleStatus } from './inbound.js';
 import { findContactByPoint } from './crm.js';
 
 const sessions = new Map(); // channelId -> { state, qr, me, error, client }
-let lib = null;
+let lib = null; // testes: WhatsApp falso para todos os números
+const libs = {}; // motor -> biblioteca carregada
 let echoDelay = 3000;
 export function setWaLib(fake, opts = {}) { lib = fake; echoDelay = opts.echoDelay ?? echoDelay; } // testes usam um WhatsApp falso
-async function loadLib() {
+// Motor de cada número: "baileys" (leve, sem navegador, o login volta sozinho ao reiniciar) ou "wwebjs" (WhatsApp Web de
+// verdade num Chrome invisível: mais aceito pelo WhatsApp para disparo, mas costuma pedir QR de novo a cada atualização).
+// Sem escolha no número, vale WA_ENGINE (na nuvem: baileys).
+export const ENGINES = ['baileys', 'wwebjs'];
+export function engineOf(channel) {
+  try { const e = JSON.parse(channel?.config || '{}').engine; if (ENGINES.includes(e)) return e; } catch {}
+  return process.env.WA_ENGINE === 'baileys' ? 'baileys' : 'wwebjs';
+}
+async function loadLib(engine = engineOf(null)) {
   if (lib) return lib;
+  if (libs[engine]) return libs[engine];
   const qrcode = (await import('qrcode')).default;
-  // Na nuvem (WA_ENGINE=baileys) usa o motor sem navegador: o login volta sozinho ao reiniciar. No PC, o whatsapp-web.js.
-  if (process.env.WA_ENGINE === 'baileys') {
+  const toDataURL = (s) => qrcode.toDataURL(s, { margin: 1, width: 300 });
+  if (engine === 'baileys') {
     const b = await import('./baileys.js');
-    lib = { Client: b.Client, LocalAuth: b.LocalAuth, MessageMedia: b.MessageMedia, toDataURL: (s) => qrcode.toDataURL(s, { margin: 1, width: 300 }) };
-    return lib;
+    return (libs[engine] = { Client: b.Client, LocalAuth: b.LocalAuth, MessageMedia: b.MessageMedia, toDataURL });
   }
   const m = await import('whatsapp-web.js');
   const w = m.default || m;
@@ -34,8 +43,7 @@ async function loadLib() {
       }
     }
   }
-  lib = { Client: w.Client, LocalAuth: SafeLocalAuth, MessageMedia: w.MessageMedia, toDataURL: (s) => qrcode.toDataURL(s, { margin: 1, width: 300 }) };
-  return lib;
+  return (libs[engine] = { Client: w.Client, LocalAuth: SafeLocalAuth, MessageMedia: w.MessageMedia, toDataURL });
 }
 
 // Sessão marcada para apagar (deslogou com o Chrome aberto): apaga agora, com o Chrome ainda fechado.
@@ -93,7 +101,7 @@ export async function startWeb(channel) {
   const cur = sessions.get(channel.id);
   if (cur && ['starting', 'qr', 'ready'].includes(cur.state)) return webStatus(channel.id);
   let L;
-  try { L = await loadLib(); } catch (e) {
+  try { L = await loadLib(engineOf(channel)); } catch (e) {
     console.error('whatsapp web: biblioteca', e.message);
     sessions.set(channel.id, { state: 'error', qr: null, me: null, error: 'Falta instalar o componente do WhatsApp Web: feche o CRM e abra o iniciar.bat de novo (precisa de internet).' });
     return webStatus(channel.id);
@@ -237,7 +245,7 @@ export async function sendWeb(channel, to, { text = '', file, buttons } = {}) {
   if (opts.length) text = `${text}\n\n${opts.map((b, i) => `${i + 1}. ${b}`).join('\n')}`;
   let m;
   if (file) {
-    const L = await loadLib();
+    const L = await loadLib(engineOf(channel));
     m = await s.client.sendMessage(chatId, new L.MessageMedia(file.mime, Buffer.from(file.buf).toString('base64'), file.name), text ? { caption: text } : {});
   } else m = await s.client.sendMessage(chatId, text);
   return { id: m?.id?._serialized || null, wa_id: chatId.endsWith('@c.us') ? chatId.split('@')[0] : chatId };

@@ -27,7 +27,7 @@ function Conversation({ id }) {
   const stage = c.lead && stageById(c.lead.stage_id);
   const act = (a) => post(`/conversations/${id}/${a}`).then(reload).catch(fail);
   const saveLead = (b) => patch(`/leads/${c.lead.id}`, b).then(reload).catch(fail);
-  const conversations = [{ id: c.id, channel: c.channel.kind, status: c.status, last_inbound_at: c.last_inbound_at }];
+  const conversations = [{ id: c.id, channel_id: c.channel.id ?? c.channel_id, channel: c.channel.kind, status: c.status, last_inbound_at: c.last_inbound_at }];
   return html`
     <div class="inbox-chat">
       <div class="chat-head">

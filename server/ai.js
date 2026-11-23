@@ -116,3 +116,20 @@ Responda APENAS com JSON: {"resposta": "texto ou vazio", "tabelas": ["nome exato
     reason: String(j.motivo || ''),
   };
 }
+
+// Traduz o que o atendente escreveu (em português) para a língua do cliente, antes de mandar.
+// customer: últimas mensagens do cliente (se ele escreve em português, o texto vai como está).
+export async function translateOut(text, { to = 'es', customer = [], brandId = 1 } = {}) {
+  const lang = { es: 'espanhol', en: 'inglês' }[to] || to;
+  const system = `Você traduz mensagens de WhatsApp que um vendedor brasileiro escreveu em português para o cliente dele.
+Traduza para ${lang}${to === 'es' ? ' natural, como se fala no Paraguai e na Argentina, tratando o cliente por "usted"' : ''}.
+Mantenha o tom, os emojis, números, valores, nomes de produtos e modelos (ex.: StarFire 6000, NAV 900, Gen 4) e as quebras de linha.
+Se as últimas mensagens do cliente estiverem em português, devolva o texto original sem mudar nada.
+Se o texto já estiver em ${lang}, devolva igual.
+Responda APENAS com o texto final, sem aspas, sem explicação.
+
+Últimas mensagens do cliente:
+${customer.filter(Boolean).slice(-3).map((t) => `- ${String(t).slice(0, 300)}`).join('\n') || '(nenhuma ainda)'}`;
+  const out = await claude({ system, messages: [{ role: 'user', content: text }], maxTokens: 1000, brandId });
+  return out.replace(/^["“]|["”]$/g, '').trim() || text;
+}

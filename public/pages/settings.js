@@ -173,6 +173,12 @@ function WebConnect({ ch }) {
   }, [ch?.id]);
   const connect = async () => { setBusy(true); try { setSt(await post('/waweb', ch ? { channel_id: ch.id } : {})); } catch (e) { fail(e); } setBusy(false); };
   const logout = async () => { setBusy(true); try { await post(`/waweb/${ch.id}/logout`); toast('Desconectado'); setSt({ state: 'off' }); } catch (e) { fail(e); } setBusy(false); };
+  const setOpt = async (o) => {
+    if (o.engine && !confirm('Trocar a conexão desconecta este número e mostra um QR code novo para ler com o celular. Continuar?')) return;
+    setBusy(true);
+    try { const r = await post(`/waweb/${ch.id}/options`, o); if (o.engine) setSt(r); await loadBoot(); toast('Salvo'); } catch (e) { fail(e); }
+    setBusy(false);
+  };
   const s = st?.state || 'off';
   return html`<div class="card pad col" style="gap:var(--s-3)">
     <div class="row"><div class="grow"><h3>${ch?.name && ch.name !== 'WhatsApp Web' ? `WhatsApp · ${ch.name}` : 'WhatsApp Web (QR code)'}</h3>
@@ -182,6 +188,18 @@ function WebConnect({ ch }) {
       <ol class="small" style="margin:0;padding-left:18px;max-width:320px"><li>No celular ${ch?.name && ch.name !== 'WhatsApp Web' ? `do número ${ch.name}` : 'do número da empresa'}, abra o WhatsApp.</li><li>Toque em ⋮ (ou Configurações) › <strong>Aparelhos conectados</strong> › <strong>Conectar aparelho</strong>.</li><li>Aponte a câmera para este código.</li></ol></div>`}
     ${s === 'starting' && html`<p class="small muted">Abrindo o WhatsApp… leva alguns segundos.</p>`}
     ${st?.error && s !== 'ready' && html`<div class="banner warn small">${st.error}</div>`}
+    ${ch && html`<div class="row wrap small" style="gap:var(--s-3)">
+      <label class="row" style="gap:6px">Conexão
+        <select aria-label="Tipo de conexão" disabled=${busy} value=${ch.engine || 'baileys'} onChange=${(e) => setOpt({ engine: e.target.value })}>
+          <option value="baileys">Leve (para anúncios)</option>
+          <option value="wwebjs">WhatsApp Web completo (para disparos)</option>
+        </select></label>
+      <label class="row" style="gap:6px">Traduzir o que eu escrevo para
+        <select aria-label="Traduzir o que eu escrevo" disabled=${busy} value=${ch.translate_to || ''} onChange=${(e) => setOpt({ translate_to: e.target.value })}>
+          <option value="">Não traduzir</option><option value="es">Espanhol</option><option value="en">Inglês</option>
+        </select></label>
+    </div>`}
+    ${ch?.engine === 'wwebjs' && html`<p class="small muted">WhatsApp Web completo: o WhatsApp aceita melhor para disparos, mas pode pedir o QR de novo depois de cada atualização do Semeia.</p>`}
     <div class="row">
       ${s === 'ready' ? html`<button class="btn" disabled=${busy} onClick=${logout}>Desconectar este aparelho</button>`
         : !['qr', 'starting'].includes(s) && html`<button class="btn primary" disabled=${busy} onClick=${connect}>${ch ? 'Conectar de novo' : 'Conectar pelo QR code'}</button>`}

@@ -1290,3 +1290,42 @@ test('IA espera uns segundos antes de responder; se uma pessoa assumir nesse mei
   process.env.AI_REPLY_DELAY = '0';
   run('update flows set active = 0 where id = ?', fid);
 });
+
+test('número do Paraguai: atendente escreve em português e sai em espanhol; motor escolhido por número', async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const ch = (await call('admin', 'POST', '/api/waweb', { novo: true, name: 'Paraguai (teste)' })).body;
+  await wait(20);
+  waFake.client.emit('ready');
+  const cli = waFake.client;
+  // tradução ligada só neste número
+  assert.equal((await call('admin', 'POST', `/api/waweb/${ch.id}/options`, { translate_to: 'es' })).status, 200);
+  assert.equal((await call('admin', 'POST', `/api/waweb/${ch.id}/options`, { translate_to: 'fr' })).status, 400);
+  const me = (await call('admin', 'GET', '/api/me')).body.channels.find((c) => c.id === ch.id);
+  assert.deepEqual([me.translate_to, me.engine], ['es', 'wwebjs']);
+  // cliente paraguaio escreve
+  cli.emit('message', { from: '595976000123@c.us', to: '556793300144@c.us', body: 'Hola, quiero saber el precio de la señal', type: 'chat', id: { _serialized: 'py-1' },
+    timestamp: Math.floor(Date.now() / 1000), fromMe: false, hasMedia: false, getContact: async () => ({ number: '595976000123', pushname: 'Juan' }) });
+  await wait(30); await flush();
+  const conv = one("select c.* from conversations c where c.channel_id = ? order by id desc limit 1", ch.id);
+  assert.ok(conv);
+  run("update conversations set status = 'open' where id = ?", conv.id);
+  const calls = anthropic.length;
+  aiAnswers = ['¡Hola Juan! ¿Cuál es el modelo de su antena?'];
+  const r = await call('admin', 'POST', `/api/conversations/${conv.id}/messages`, { text: 'Olá Juan! Qual o modelo da sua antena?' });
+  assert.equal(r.status, 200);
+  assert.equal(anthropic.length, calls + 1);
+  assert.match(anthropic.at(-1).body.system, /espanhol/);
+  assert.match(anthropic.at(-1).body.system, /quiero saber el precio/); // olha a língua do cliente
+  assert.deepEqual([r.body.body, r.body.original_body], ['¡Hola Juan! ¿Cuál es el modelo de su antena?', 'Olá Juan! Qual o modelo da sua antena?']);
+  assert.equal(cli.sent.at(-1).content, '¡Hola Juan! ¿Cuál es el modelo de su antena?');
+  // número sem tradução: vai como escrito, sem chamar a IA
+  await call('admin', 'POST', `/api/waweb/${ch.id}/options`, { translate_to: '' });
+  const r2 = await call('admin', 'POST', `/api/conversations/${conv.id}/messages`, { text: 'Obrigado!' });
+  assert.deepEqual([r2.body.body, r2.body.original_body, anthropic.length], ['Obrigado!', null, calls + 1]);
+  // trocar o motor do número: desconecta e pede QR de novo
+  const st = (await call('admin', 'POST', `/api/waweb/${ch.id}/options`, { engine: 'baileys' })).body;
+  assert.ok(['starting', 'qr'].includes(st.state));
+  assert.equal((await call('admin', 'GET', '/api/me')).body.channels.find((c) => c.id === ch.id).engine, 'baileys');
+  assert.equal((await call('admin', 'POST', `/api/waweb/${ch.id}/options`, { engine: 'outro' })).status, 400);
+  run("update channels set status = 'disabled' where id = ?", ch.id);
+});
