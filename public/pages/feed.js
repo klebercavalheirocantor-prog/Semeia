@@ -156,6 +156,94 @@ export function TemplateSend({ contactId, leadId, contactName, onClose, onSent }
   <//>`;
 }
 
+// Antes de mandar uma foto: riscar à mão livre (com o dedo ou o mouse) para marcar algo. Sem riscos, vai a foto original.
+const PEN_COLORS = [['#e53935', 'Vermelho'], ['#fdd835', 'Amarelo'], ['#1e88e5', 'Azul'], ['#ffffff', 'Branco'], ['#111111', 'Preto']];
+function PhotoMarkup({ file, caption, onSend, onClose }) {
+  const cv = useRef();
+  const img = useRef();
+  const strokes = useRef([]);
+  const cur = useRef(null);
+  const [color, setColor] = useState(PEN_COLORS[0][0]);
+  const [count, setCount] = useState(0);
+  const [cap, setCap] = useState(caption || '');
+  const [busy, setBusy] = useState(false);
+  const draw = (ctx, s) => {
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.w; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    s.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    if (s.pts.length === 1) ctx.lineTo(s.pts[0][0] + 0.1, s.pts[0][1]);
+    ctx.stroke();
+  };
+  const redraw = () => {
+    const c = cv.current;
+    if (!c || !img.current) return;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img.current, 0, 0, c.width, c.height);
+    strokes.current.forEach((s) => draw(ctx, s));
+  };
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => {
+      img.current = im;
+      const k = Math.min(1, 1600 / Math.max(im.naturalWidth, im.naturalHeight)); // foto grande fica com até 1600 px
+      cv.current.width = Math.round(im.naturalWidth * k);
+      cv.current.height = Math.round(im.naturalHeight * k);
+      redraw();
+    };
+    im.src = url;
+    return () => URL.revokeObjectURL(url);
+  }, []);
+  const pos = (e) => {
+    const r = cv.current.getBoundingClientRect();
+    return [(e.clientX - r.left) * cv.current.width / r.width, (e.clientY - r.top) * cv.current.height / r.height];
+  };
+  const down = (e) => {
+    e.preventDefault();
+    cv.current.setPointerCapture?.(e.pointerId);
+    cur.current = { color, w: Math.max(4, cv.current.width / 140), pts: [pos(e)] };
+    strokes.current.push(cur.current);
+    draw(cv.current.getContext('2d'), cur.current);
+  };
+  const move = (e) => {
+    if (!cur.current) return;
+    e.preventDefault();
+    const s = cur.current;
+    const ctx = cv.current.getContext('2d');
+    const [x0, y0] = s.pts.at(-1);
+    const p = pos(e);
+    s.pts.push(p);
+    draw(ctx, { ...s, pts: [[x0, y0], p] });
+  };
+  const up = () => { if (cur.current) { cur.current = null; setCount(strokes.current.length); } };
+  const undo = () => { strokes.current.pop(); setCount(strokes.current.length); redraw(); };
+  const clear = () => { strokes.current = []; setCount(0); redraw(); };
+  const send = () => {
+    setBusy(true);
+    if (!strokes.current.length) { onSend(file, cap); return; }
+    const name = (file.name || 'foto').replace(/\.[^.]+$/, '') + '-marcada.jpg';
+    cv.current.toBlob((b) => {
+      if (!b) { setBusy(false); fail(new Error('Não consegui preparar a foto marcada')); return; }
+      onSend(new File([b], name, { type: 'image/jpeg' }), cap);
+    }, 'image/jpeg', 0.9);
+  };
+  return html`<${Modal} title="Marcar na foto" wide onClose=${onClose} footer=${html`
+    <button class="btn" onClick=${onClose}>Cancelar</button>
+    <button class="btn primary" disabled=${busy} onClick=${send}>${busy ? 'Enviando…' : count ? 'Enviar foto marcada' : 'Enviar foto'}</button>`}>
+    <div class="col">
+      <div class="row wrap markup-tools">
+        <span class="small muted">Risque com o dedo ou o mouse:</span>
+        ${PEN_COLORS.map(([c, n]) => html`<button type="button" class=${`pen ${color === c ? 'on' : ''}`} style=${`background:${c}`} aria-label=${`Cor ${n}`} aria-pressed=${color === c} onClick=${() => setColor(c)}></button>`)}
+        <span class="spacer"></span>
+        <button class="btn sm" disabled=${!count} onClick=${undo}>↶ Desfazer</button>
+        <button class="btn sm" disabled=${!count} onClick=${clear}>Limpar</button>
+      </div>
+      <canvas ref=${cv} class="markup-canvas" aria-label="Foto para marcar" onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${up} onPointerLeave=${up}></canvas>
+      <input aria-label="Legenda" placeholder="Legenda (opcional)" value=${cap} onInput=${(e) => setCap(e.target.value)} />
+    </div>
+  <//>`;
+}
+
 export function Composer({ entity, entityId, conversations = [], disabled, onSent, contactId, contactName, leadId }) {
   const [tplOpen, setTplOpen] = useState(false);
   const open = conversations.filter((c) => c.status === 'open');
@@ -165,6 +253,7 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
   const [busy, setBusy] = useState(false);
   const [task, setTask] = useState({ type_id: B().task_types[0]?.id, due_at: endOfDay(0), responsible_id: B().user.id });
   const fileRef = useRef();
+  const [markup, setMarkup] = useState(null); // foto escolhida, abrindo para riscar antes de mandar
   useEffect(() => { if (!conversations.find((c) => c.id === convId)) setConvId(open[0]?.id || conversations[0]?.id); }, [conversations.map((c) => c.id + c.status).join()]);
   const conv = conversations.find((c) => c.id === convId);
   const windowClosed = conv?.channel === 'whatsapp' && (!conv.last_inbound_at || Date.now() - conv.last_inbound_at > 24 * 3600e3);
@@ -181,22 +270,28 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
     } catch (e) { fail(e); }
     setBusy(false);
   };
-  const sendFile = async (file) => {
+  const sendFile = async (file, caption = text) => {
     if (!file) return;
     setBusy(true);
     try {
       await api(`/conversations/${convId}/messages`, { method: 'POST', raw: true, body: file,
-        headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-filename': encodeURIComponent(file.name), 'x-caption': encodeURIComponent(text) } });
+        headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-filename': encodeURIComponent(file.name), 'x-caption': encodeURIComponent(caption) } });
       setText('');
       onSent?.();
     } catch (e) { fail(e); }
     setBusy(false);
-    fileRef.current.value = '';
+    if (fileRef.current) fileRef.current.value = '';
+  };
+  // Foto passa antes pela tela de marcar; outros arquivos vão direto.
+  const pickFile = (file) => {
+    if (!file) return;
+    if (/^image\/(jpeg|png|webp)$/.test(file.type)) setMarkup(file);
+    else sendFile(file);
   };
   const reopen = () => patch(`/conversations/${convId}`, { status: 'open' }).catch(fail);
 
   if (disabled) return html`<div class="composer muted small">Você pode ver, mas não editar este registro.</div>`;
-  return html`<div class="composer" onDragOver=${(e) => tab === 'msg' && e.preventDefault()} onDrop=${(e) => { if (tab !== 'msg') return; e.preventDefault(); sendFile(e.dataTransfer.files[0]); }}>
+  return html`<div class="composer" onDragOver=${(e) => tab === 'msg' && e.preventDefault()} onDrop=${(e) => { if (tab !== 'msg') return; e.preventDefault(); pickFile(e.dataTransfer.files[0]); }}>
     <div class="tabs" role="tablist">
       ${conversations.length > 0 && html`<button role="tab" aria-selected=${tab === 'msg'} onClick=${() => setTab('msg')}>Mensagem</button>`}
       <button role="tab" aria-selected=${tab === 'note'} onClick=${() => setTab('note')}>Nota</button>
@@ -207,6 +302,8 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
     ${tab === 'msg' && conv?.status === 'closed' && html`<div class="banner info row">Conversa fechada.<span class="spacer"></span><button class="btn sm" onClick=${reopen}>Reabrir</button></div>`}
     ${tab === 'msg' && conv?.status !== 'closed' && windowClosed && html`<div class="banner warn row wrap">O cliente não escreve há mais de 24 h. O WhatsApp só entrega mensagem modelo aprovada até ele responder.
       ${contactId && html`<span class="spacer"></span><button class="btn sm" onClick=${() => setTplOpen(true)}>Enviar mensagem modelo</button>`}</div>`}
+    ${markup && html`<${PhotoMarkup} file=${markup} caption=${text} onClose=${() => { setMarkup(null); if (fileRef.current) fileRef.current.value = ''; }}
+      onSend=${async (f, cap) => { setMarkup(null); await sendFile(f, cap); }} />`}
     ${tplOpen && html`<${TemplateSend} contactId=${contactId} leadId=${leadId} contactName=${contactName} onClose=${() => setTplOpen(false)} onSent=${onSent} />`}
     ${tab === 'task' && html`<div class="row wrap">
       <select aria-label="Tipo" value=${task.type_id} onChange=${(e) => setTask({ ...task, type_id: Number(e.target.value) })}>${B().task_types.map((t) => html`<option value=${t.id}>${t.name}</option>`)}</select>
@@ -220,7 +317,7 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
       placeholder=${tab === 'msg' ? 'Escreva para o cliente… (Ctrl+Enter envia)' : tab === 'note' ? 'Nota interna, o cliente não vê' : 'O que precisa ser feito?'}
       value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(); }}></textarea>
     <div class="row">
-      ${tab === 'msg' && html`<input type="file" ref=${fileRef} class="sr-only" id="file-${entityId}" onChange=${(e) => sendFile(e.target.files[0])} />
+      ${tab === 'msg' && html`<input type="file" ref=${fileRef} class="sr-only" id="file-${entityId}" onChange=${(e) => pickFile(e.target.files[0])} />
         <label for="file-${entityId}" class="btn" title="Anexar arquivo" tabindex="0" onKeyDown=${(e) => e.key === 'Enter' && fileRef.current.click()}>📎 Arquivo</label>`}
       <span class="spacer"></span>
       <button class="btn primary" disabled=${busy || !text.trim() || (tab === 'msg' && conv?.status === 'closed')} onClick=${send}>

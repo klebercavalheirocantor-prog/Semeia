@@ -392,3 +392,9 @@ code.copy { background: var(--c-surface-2); border: 1px solid var(--c-border); b
 .nav .brand-pick select { width: 100%; background: #2b3349; color: #fff; border: 1px solid rgba(255, 255, 255, .25); border-radius: 6px; font: 700 11px var(--font); padding: 5px 2px; cursor: pointer; }
 .nav .brand-pick select:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
 @media (max-width: 760px) { .nav .brand-pick { display: none; } }
+
+/* marcar na foto antes de enviar */
+.markup-canvas { display: block; max-width: 100%; max-height: 62vh; margin: 0 auto; touch-action: none; cursor: crosshair; border-radius: var(--r-2); background: #000; }
+.markup-tools { gap: 8px; align-items: center; }
+.markup-tools .pen { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--c-border); cursor: pointer; padding: 0; }
+.markup-tools .pen.on { outline: 3px solid var(--c-text, #222); outline-offset: 2px; }
