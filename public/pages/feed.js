@@ -2,11 +2,32 @@ import { html, useState, useEffect, useRef, api, post, patch, del, fail, B, user
 
 const STATUS = { pending: ['🕓', 'Enviando'], sent: ['✓', 'Enviada'], delivered: ['✓✓', 'Entregue'], read: ['✓✓', 'Lida'], failed: ['⚠', 'Falhou'] };
 
+// Foto aberta por cima da conversa, com "Fechar". No app instalado no celular não há botão de voltar do navegador:
+// abrir a foto numa página nova deixava a pessoa presa nela. O gesto/botão "voltar" do celular também fecha.
+function PhotoView({ src, alt, onClose }) {
+  useEffect(() => {
+    history.pushState({ foto: 1 }, '');
+    let closed = false;
+    const onPop = () => { closed = true; onClose(); };
+    const onKey = (e) => e.key === 'Escape' && history.back();
+    addEventListener('popstate', onPop);
+    addEventListener('keydown', onKey);
+    return () => { removeEventListener('popstate', onPop); removeEventListener('keydown', onKey); if (!closed && history.state?.foto) history.back(); };
+  }, []);
+  return html`<div class="lightbox" role="dialog" aria-modal="true" aria-label="Foto" onClick=${() => history.back()}>
+    <button class="btn lightbox-close" onClick=${(e) => { e.stopPropagation(); history.back(); }}>✕ Fechar</button>
+    <img src=${src} alt=${alt} onClick=${(e) => e.stopPropagation()} />
+    <a class="btn sm lightbox-dl" href=${src} download onClick=${(e) => e.stopPropagation()}>Baixar</a>
+  </div>`;
+}
+
 export function Bubble({ m }) {
+  const [zoom, setZoom] = useState(false);
   const f = m.file_id && `/api/files/${m.file_id}`;
   const mime = m.file_mime || '';
   let media = null;
-  if (f && mime.startsWith('image/')) media = html`<a href=${f} target="_blank" rel="noopener"><img src=${f} alt=${m.file_name || 'imagem'} loading="lazy" /></a>`;
+  if (f && mime.startsWith('image/')) media = html`<button type="button" class="bubble-img" onClick=${() => setZoom(true)} aria-label="Abrir foto"><img src=${f} alt=${m.file_name || 'imagem'} loading="lazy" /></button>
+    ${zoom && html`<${PhotoView} src=${f} alt=${m.file_name || 'imagem'} onClose=${() => setZoom(false)} />`}`;
   else if (f && mime.startsWith('audio/')) media = html`<audio controls src=${f} preload="none"></audio>`;
   else if (f && mime.startsWith('video/')) media = html`<video controls src=${f} preload="none"></video>`;
   else if (f) media = html`<a href=${f} target="_blank" rel="noopener">📎 ${m.file_name || 'arquivo'}</a>`;

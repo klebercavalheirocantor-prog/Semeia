@@ -171,6 +171,13 @@ table.t { width: 100%; border-collapse: collapse; background: var(--c-surface); 
 .bubble.out { align-self: flex-end; background: var(--c-bubble-out); border-bottom-right-radius: var(--r-1); }
 .bubble.failed { border: 1px solid var(--c-danger); }
 .bubble img, .bubble video { max-width: 100%; max-height: 320px; border-radius: var(--r-2); display: block; }
+.bubble-img { all: unset; cursor: zoom-in; display: block; }
+.bubble-img:focus-visible { outline: 2px solid var(--accent, #2e7d32); outline-offset: 2px; border-radius: var(--r-2); }
+.lightbox { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.92); display: flex; align-items: center; justify-content: center;
+  padding: calc(env(safe-area-inset-top) + 56px) 12px calc(env(safe-area-inset-bottom) + 56px); }
+.lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px; }
+.lightbox-close { position: absolute; top: calc(env(safe-area-inset-top) + 10px); right: 12px; font-size: 16px; padding: 10px 16px; }
+.lightbox-dl { position: absolute; bottom: calc(env(safe-area-inset-bottom) + 12px); right: 12px; }
 .bubble audio { max-width: 100%; }
 .bubble .meta { font-size: var(--fs-xs); color: var(--c-muted); display: flex; gap: var(--s-1); justify-content: flex-end; align-items: center; margin-top: 2px; }
 .tick.read { color: var(--c-read); }
