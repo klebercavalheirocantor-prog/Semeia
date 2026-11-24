@@ -1329,3 +1329,31 @@ test('número do Paraguai: atendente escreve em português e sai em espanhol; mo
   assert.equal((await call('admin', 'POST', `/api/waweb/${ch.id}/options`, { engine: 'outro' })).status, 400);
   run("update channels set status = 'disabled' where id = ?", ch.id);
 });
+
+test('excluir conversa: some com as mensagens; lead não triado sai junto, lead aceito fica; vendedor não exclui', async () => {
+  await webhook(waMsg('wamid.del1', '5511977770001', 'Teste para apagar', 'Teste Apagar'));
+  await webhook(waMsg('wamid.del2', '5511977770002', 'Cliente de verdade', 'Cliente Real'));
+  await settle();
+  const c1 = one("select * from conversations where external_id = '5511977770001'");
+  const c2 = one("select * from conversations where external_id = '5511977770002'");
+  assert.ok([401, 403].includes((await call('beto', 'DELETE', `/api/conversations/${c1.id}`)).status));
+  assert.equal(one('select count(*) n from conversations where id = ?', c1.id).n, 1);
+  const r = await call('admin', 'DELETE', `/api/conversations/${c1.id}`);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.lead_removed, true);
+  assert.equal(one('select count(*) n from conversations where id = ?', c1.id).n, 0);
+  assert.equal(one('select count(*) n from messages where conversation_id = ?', c1.id).n, 0);
+  assert.ok(one('select deleted_at from leads where id = ?', c1.lead_id).deleted_at);
+  assert.ok(one('select id from contacts where id = ? and deleted_at is null', c1.contact_id)); // contato fica
+
+  await call('admin', 'POST', `/api/conversations/${c2.id}/accept`);
+  assert.equal((await call('admin', 'DELETE', `/api/conversations/${c2.id}`)).body.lead_removed, false);
+  assert.equal(one('select deleted_at from leads where id = ?', c2.lead_id).deleted_at, null); // lead aceito continua no funil
+  assert.equal((await call('admin', 'DELETE', `/api/conversations/${c2.id}`)).status, 404);
+
+  // a pessoa escreve de novo: nova conversa normal
+  await webhook(waMsg('wamid.del3', '5511977770002', 'Voltei'));
+  await settle();
+  const c3 = one("select * from conversations where external_id = '5511977770002'");
+  assert.equal(c3.lead_id, c2.lead_id);
+});

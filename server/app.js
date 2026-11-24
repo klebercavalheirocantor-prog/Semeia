@@ -895,6 +895,22 @@ app.patch('/api/conversations/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// Excluir conversa (só administrador): some com as mensagens e o robô daquela conversa.
+// O contato fica; o lead fica no funil, a não ser que ainda esteja em "Novas conversas" (não triado): aí sai junto.
+app.delete('/api/conversations/:id', (req, res) => {
+  admin(req);
+  const c = loadConv(req, Number(req.params.id));
+  const lead = c.lead_id && one('select l.id, s.kind from leads l join stages s on s.id = l.stage_id where l.id = ? and l.deleted_at is null', c.lead_id);
+  const dropLead = lead?.kind === 'incoming' && !one('select 1 from conversations where lead_id = ? and id != ?', lead.id, c.id);
+  tx(() => {
+    run('delete from conversations where id = ?', c.id); // mensagens e execuções do robô vão junto (on delete cascade)
+    if (dropLead) run('update leads set deleted_at = ? where id = ?', now(), lead.id);
+  });
+  if (lead) emit('lead', { id: lead.id });
+  emit('message', { conversation_id: c.id });
+  res.json({ ok: true, lead_removed: !!dropLead });
+});
+
 // Leads que chegaram pela etapa "novas conversas": aceitar, recusar ou juntar a um lead existente.
 app.post('/api/conversations/:id/:action', (req, res) => {
   if (!['accept', 'decline', 'link'].includes(req.params.action)) throw httpError(404, 'Rota não encontrada');

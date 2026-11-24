@@ -1,4 +1,4 @@
-import { html, useState, useEffect, api, post, patch, fail, B, go, ago, money, useData, useDebounced, Modal, Channel, UserSelect, StageSelect, Skeleton, ErrorBox, Empty, stageById, userName } from '../lib.js';
+import { html, useState, useEffect, api, post, patch, del, fail, toast, Confirm, B, go, ago, money, useData, useDebounced, Modal, Channel, UserSelect, StageSelect, Skeleton, ErrorBox, Empty, stageById, userName } from '../lib.js';
 import { Bubble, Composer } from './feed.js';
 import { LossModal } from './leads.js';
 
@@ -20,6 +20,7 @@ function Conversation({ id }) {
   const { data: c, error, reload } = useData(() => api(`/conversations/${id}`), [id], ['message', 'lead']);
   const [linking, setLinking] = useState(false);
   const [loss, setLoss] = useState(null);
+  const [askDel, setAskDel] = useState(false);
   useEffect(() => { if (c?.unread > 0) patch(`/conversations/${id}`, { read: true }).catch(() => {}); }, [c?.messages.length, c?.unread]);
   useEffect(() => { const el = document.getElementById('chat-scroll'); if (el) el.scrollTop = el.scrollHeight; }, [c?.messages.length, c?.messages.at(-1)?.status]);
   if (error) return html`<${ErrorBox} error=${error} retry=${reload} />`;
@@ -37,6 +38,7 @@ function Conversation({ id }) {
           <div class="xs muted ellipsis">${c.contact.phones[0] || c.channel.name}${c.lead ? html` · <a href=${`#/lead/${c.lead.id}`}>${c.lead.name}</a>` : ''}</div></div>
         ${c.status === 'open' ? html`<button class="btn sm" onClick=${() => patch(`/conversations/${id}`, { status: 'closed' }).then(reload).catch(fail)}>Encerrar conversa</button>`
           : html`<button class="btn sm" onClick=${() => patch(`/conversations/${id}`, { status: 'open' }).then(reload).catch(fail)}>Reabrir</button>`}
+        ${B().user.is_admin && html`<button class="btn danger sm" title="Excluir conversa" onClick=${() => setAskDel(true)}>Excluir</button>`}
       </div>
       ${stage?.kind === 'incoming' && html`<div class="banner info row wrap" style="margin:8px 16px 0">Conversa nova. É um cliente de verdade?<span class="spacer"></span>
         <button class="btn primary sm" onClick=${() => act('accept')}>Aceitar</button>
@@ -63,6 +65,10 @@ function Conversation({ id }) {
       ${c.contact.emails.map((m) => html`<span class="small">✉ ${m}</span>`)}
     </aside>
     ${linking && html`<${LinkLeadModal} convId=${id} onClose=${() => { setLinking(false); reload(); }} />`}
+    ${askDel && html`<${Confirm} title="Excluir conversa?" danger okLabel="Excluir"
+      text=${`Apaga esta conversa e todas as mensagens dela aqui no Semeia (no celular continua). O contato fica${stage?.kind === 'incoming' ? '; o lead ainda não triado sai do funil' : ' e o lead continua no funil'}. Não dá para desfazer.`}
+      onClose=${() => setAskDel(false)}
+      onOk=${() => del(`/conversations/${id}`).then(() => { toast('Conversa excluída'); go('#/chats'); })} />`}
     ${loss && html`<${LossModal} onClose=${() => setLoss(null)} onOk=${(r) => saveLead({ stage_id: loss, loss_reason_id: r })} />`}`;
 }
 
