@@ -23,20 +23,30 @@ const ICONS = {
 };
 
 // Cadastro pelo site: empresa nova no teste grátis (só aparece com o cadastro aberto no servidor).
+// Vem da página de planos: #/cadastro?plano=profissional (&pagar=1 = já abre o pagamento depois de criar a conta).
+const hashQuery = () => new URLSearchParams(location.hash.split('?')[1] || '');
 function Signup({ info, back }) {
-  const [f, setF] = useState({ company: '', name: '', email: '', phone: '', password: '', plan: 'profissional', terms: false });
+  const q = hashQuery();
+  const pagar = q.get('pagar') === '1';
+  const [f, setF] = useState({ company: '', name: '', email: '', phone: '', password: '', plan: info.plans.some((p) => p.key === q.get('plano')) ? q.get('plano') : 'profissional', terms: false });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
   const brl = (c) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
   const submit = async (e) => {
     e.preventDefault(); setBusy(true); setErr('');
-    try { await post('/signup', f); location.hash = '#/settings/channels'; location.reload(); } catch (x) { setErr(x.message); setBusy(false); }
+    try {
+      await post('/signup', f);
+      if (pagar) { // escolheu "Assinar já": vai direto para o pagamento; se o pagamento não abrir, entra no teste grátis
+        try { const r = await post('/billing/checkout', { plan: f.plan }); location.href = r.url; return; } catch {}
+      }
+      location.hash = '#/settings/channels'; location.reload();
+    } catch (x) { setErr(x.message); setBusy(false); }
   };
   return html`<main class="auth"><form class="card pad form" onSubmit=${submit}>
     <div class="auth-brand"><img src="/logo.svg" alt="" width="56" height="56" /><div><strong aria-label="Fechaê">${WORDMARK}</strong><span>CRM que fecha venda</span></div></div>
-    <h1>Criar conta grátis</h1>
-    <p class="small muted">${info.trial_days} dias grátis, sem cartão. Depois, escolha se quer continuar.</p>
+    <h1>${pagar ? 'Criar conta e assinar' : 'Criar conta grátis'}</h1>
+    <p class="small muted">${pagar ? 'Depois de criar a conta, o pagamento abre no Mercado Pago e você já entra no sistema.' : `${info.trial_days} dias grátis, sem cartão. Depois, escolha se quer continuar.`}</p>
     <label class="field">Nome da empresa<input required autocomplete="organization" value=${f.company} onInput=${set('company')} /></label>
     <label class="field">Seu nome<input required autocomplete="name" value=${f.name} onInput=${set('name')} /></label>
     <label class="field">E-mail<input required type="email" autocomplete="email" value=${f.email} onInput=${set('email')} /></label>
@@ -47,7 +57,8 @@ function Signup({ info, back }) {
         <span><strong>${p.name}</strong> · ${brl(p.cents)}/mês · ${p.users} usuários, ${p.whatsapp} ${p.whatsapp === 1 ? 'WhatsApp' : 'WhatsApps'}</span></label>`)}</fieldset>
     <label class="check"><input type="checkbox" required checked=${f.terms} onChange=${set('terms')} /><span>Li e aceito os <a href="/termos.html" target="_blank" rel="noopener">termos de uso e a política de privacidade</a></span></label>
     ${err && html`<p class="error-text" role="alert">${err}</p>`}
-    <button class="btn primary" disabled=${busy}>${busy ? 'Criando…' : 'Criar conta e começar'}</button>
+    <button class="btn primary" disabled=${busy}>${busy ? 'Criando…' : pagar ? 'Criar conta e ir para o pagamento' : 'Criar conta e começar'}</button>
+    <p class="xs muted"><a href="/planos.html">Ver o que cada pacote inclui</a></p>
     <p class="xs muted">Já tem conta? <a href="#/login" onClick=${(e) => { e.preventDefault(); back(); }}>Entrar</a></p>
     <p class="xs muted">Fechaê é um serviço de KC Financial Solutions Ltda · CNPJ 62.564.150/0001-85 · Ponta Porã/MS · contato@agro-vox.com</p>
   </form></main>`;
@@ -57,7 +68,7 @@ const WORDMARK = html`<span class="wordmark">fecha<span class="wm-e">e<svg viewB
 
 function Auth({ setup }) {
   const [signup, setSignup] = useState(null);
-  useEffect(() => { if (!setup) api('/plans').then((p) => { if (p.open) setSignup((s) => s || { info: p, on: location.hash === '#/cadastro' }); }).catch(() => {}); }, []);
+  useEffect(() => { if (!setup) api('/plans').then((p) => { if (p.open) setSignup((s) => s || { info: p, on: location.hash.startsWith('#/cadastro') }); }).catch(() => {}); }, []);
   const [f, setF] = useState({ company: '', name: '', email: '', password: '' });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -90,6 +101,7 @@ function Auth({ setup }) {
 
 function Nav({ current }) {
   const b = B();
+  const has = (f) => (b.billing?.features || []).includes(f);
   const item = (key, href, label, badge) => html`<a href=${href} aria-current=${current === key ? 'page' : null}>${ICONS[key]}<span>${label}</span>
     ${badge > 0 && html`<span class="badge" aria-label=${`${badge} não lidas`}>${badge > 99 ? '99+' : badge}</span>`}</a>`;
   return html`<nav class="nav" aria-label="Menu principal">
@@ -102,11 +114,11 @@ function Nav({ current }) {
     ${item('leads', '#/leads', 'Funil')}
     ${item('chats', '#/chats', 'Conversas', b.unread)}
     ${item('contacts', '#/contacts', 'Contatos')}
-    ${b.user.is_admin && item('campaigns', '#/campaigns', 'Campanhas')}
+    ${b.user.is_admin && has('campanhas') && item('campaigns', '#/campaigns', 'Campanhas')}
     ${b.user.is_admin && item('flows', '#/flows', 'Fluxos')}
     ${item('tasks', '#/tasks', 'Tarefas')}
     ${item('settings', '#/settings', 'Ajustes')}
-    <button class="nav-assist" onClick=${() => dispatchEvent(new Event('assistente'))} title="Assistente: peça e ele faz no CRM">${ASSIST_ICON}<span>Assistente</span></button>
+    ${has('assistente') && html`<button class="nav-assist" onClick=${() => dispatchEvent(new Event('assistente'))} title="Assistente: peça e ele faz no CRM">${ASSIST_ICON}<span>Assistente</span></button>`}
     <span class="spacer nav-extra"></span>
     <button class="nav-extra" title=${`Sair (${b.user.name})`} onClick=${() => post('/logout').then(() => location.reload()).catch(fail)}>
       ${icon(html`<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />`)}<span>Sair</span></button>

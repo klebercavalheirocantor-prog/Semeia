@@ -316,3 +316,21 @@ test('cancelar pela tela: cobrança para no Mercado Pago e o acesso vai até o f
   const log = db.platform.prepare("select * from access_log where kind = 'login' and account_id = ? order by at desc").get(B);
   assert.ok(log && log.ip && log.at > Date.now() - 60e3);
 });
+
+test('cada pacote libera o que promete: o Fecha não tem campanhas nem assistente; a AgroVox (interna) tem tudo', async () => {
+  const acc = db.accountIds().at(-1);
+  db.platform.prepare("update accounts set plan = 'essencial', status = 'ativo' where id = ?").run(acc);
+  const r = await call('rui', 'GET', '/api/campaigns');
+  assert.equal(r.status, 402);
+  assert.match(r.body.error, /Fecha Mais/);
+  assert.equal((await call('rui', 'POST', '/api/assistente', { messages: [{ role: 'user', content: 'oi' }] })).status, 402);
+  assert.equal((await call('rui', 'POST', '/api/mcp-link')).status, 402);
+  assert.deepEqual((await call('rui', 'GET', '/api/me')).body.billing.features, []);
+  assert.equal((await call('rui', 'GET', '/api/leads')).status, 200); // o básico continua
+  db.platform.prepare("update accounts set plan = 'profissional' where id = ?").run(acc);
+  assert.equal((await call('rui', 'GET', '/api/campaigns')).status, 200);
+  assert.equal((await call('rui', 'POST', '/api/brands', { name: 'Outra' })).status, 402); // marcas: só no Fecha Tudo
+  assert.equal((await call('a', 'GET', '/api/campaigns')).status, 200);
+  const plans = await (await fetch(`${base}/api/plans`)).json();
+  assert.deepEqual(plans.plans.map((p) => p.name), ['Fecha', 'Fecha Mais', 'Fecha Tudo']);
+});

@@ -78,6 +78,13 @@ então nada muda para a AgroVox.
       e-mail de boas-vindas.
 - [ ] Painel do dono da plataforma (ver todas as empresas, plano, quem está devendo).
 
+## Página de vendas e pacotes (25/11)
+- `/planos.html` (vira a página inicial do fechae.com): pacotes Fecha (R$ 197), Fecha Mais (R$ 397) e Fecha Tudo (R$ 797).
+  Botões levam ao cadastro já com o pacote (`/#/cadastro?plano=...`); "Assinar já" (`&pagar=1`) cria a conta e abre o
+  pagamento no Mercado Pago. Com o cadastro fechado, os botões viram e-mail de interesse.
+- O que cada pacote libera é cobrado de verdade no sistema (`PLANS[].features` em billing.js): Fecha Mais = campanhas e
+  assistente/conector do Claude; Fecha Tudo = + tradução automática e várias marcas. Interno (AgroVox) = tudo.
+
 ## Assistente (Claude dentro do CRM) — feito em 25/11
 - Botão "Assistente" no menu: a pessoa conversa e ele busca/lê leads e conversas, resume, cria tarefa, move etapa,
   anota e mostra os números do painel (`server/assistente.js`).

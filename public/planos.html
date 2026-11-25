@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fechaê · Pacotes</title>
+<meta name="description" content="Fechaê: conversas do WhatsApp, funil e atendente com IA num lugar só. Teste 7 dias grátis.">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --laranja: #F26A1B;
+  --laranja-forte: #C2410C;
+  --laranja-claro: #FF9A57;
+  --marinho: #14213D;
+  --marinho-fundo: #0E1830;
+  --areia: #FFF7F2;
+  --pessego: #FFE4D1;
+  --tinta: #1B2440;
+  --apagado: #4A5068;
+  --zap: #DCF8C6;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; font-family: Figtree, system-ui, sans-serif; color: var(--tinta); background: var(--areia); font-size: 17px; line-height: 1.55; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--laranja-claro); outline-offset: 3px; border-radius: 6px; }
+h1, h2, h3 { font-family: 'Baloo 2', system-ui, sans-serif; line-height: 1.05; margin: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+
+/* topo */
+.top { background: var(--marinho); color: #fff; }
+.top .wrap { display: flex; align-items: center; justify-content: space-between; height: 72px; }
+.marca { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
+.marca img { width: 38px; height: 38px; border-radius: 10px; }
+.wordmark { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 30px; letter-spacing: -1px; line-height: 1; display: inline-flex; align-items: flex-end; }
+.wordmark .e { position: relative; color: var(--laranja); }
+.wordmark .e svg { position: absolute; left: 50%; top: -5px; width: 14px; height: 10px; transform: translateX(-50%); color: var(--laranja); }
+.top nav { display: flex; gap: 22px; align-items: center; font-weight: 600; }
+.top nav a { text-decoration: none; opacity: .85; }
+.top nav a:hover { opacity: 1; }
+.top nav .entrar { border: 2px solid rgba(255,255,255,.35); padding: 6px 16px; border-radius: 999px; opacity: 1; }
+
+/* herói */
+.heroi { background: var(--marinho); color: #fff; padding: 56px 0 120px; position: relative; overflow: hidden; }
+.heroi::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 70px; background: var(--areia); clip-path: polygon(0 100%, 100% 30%, 100% 100%); }
+.heroi .wrap { display: grid; grid-template-columns: 1.1fr .9fr; gap: 56px; align-items: center; }
+.heroi h1 { font-size: clamp(44px, 6.4vw, 84px); font-weight: 800; letter-spacing: -2px; }
+.heroi h1 .aspas { color: var(--laranja); }
+.heroi p.sub { font-size: 20px; max-width: 34ch; color: #D5DAE8; margin: 22px 0 32px; }
+.botoes { display: flex; flex-wrap: wrap; gap: 14px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 26px; border-radius: 999px; font-weight: 700; font-size: 17px; text-decoration: none; border: 0; cursor: pointer; }
+.btn.cheio { background: var(--laranja); color: var(--marinho-fundo); box-shadow: 0 6px 0 var(--laranja-forte); }
+.btn.cheio:hover { transform: translateY(2px); box-shadow: 0 4px 0 var(--laranja-forte); }
+.btn.linha { border: 2px solid rgba(255,255,255,.4); color: #fff; }
+.btn.linha:hover { border-color: #fff; }
+.heroi .miudo { margin-top: 18px; font-size: 14px; color: #AEB7CF; }
+
+/* conversa animada */
+.celular { background: #fff; color: var(--tinta); border-radius: 30px; padding: 16px; box-shadow: 0 30px 60px rgba(0,0,0,.35); max-width: 380px; justify-self: end; width: 100%; position: relative; transform: rotate(2deg); }
+.celular .cab { display: flex; align-items: center; gap: 10px; padding: 4px 6px 12px; border-bottom: 1px solid #EEE; }
+.celular .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--pessego); display: grid; place-items: center; font-weight: 700; color: var(--laranja-forte); }
+.celular .cab small { display: block; color: #6B7280; font-size: 12px; }
+.chat { display: flex; flex-direction: column; gap: 8px; padding: 14px 4px 34px; min-height: 330px; }
+.bolha { max-width: 82%; padding: 8px 12px; border-radius: 14px; font-size: 15px; line-height: 1.35; }
+.bolha.cli { align-self: flex-start; background: #F1F2F6; border-top-left-radius: 4px; }
+.bolha.ia { align-self: flex-end; background: var(--zap); border-top-right-radius: 4px; }
+.bolha.ia small { display: block; font-size: 11px; color: #4B7B3A; margin-top: 2px; }
+.tabela { align-self: flex-end; background: var(--zap); border-radius: 14px; border-top-right-radius: 4px; padding: 6px; width: 70%; }
+.tabela div { background: #fff; border-radius: 10px; padding: 10px; font-size: 13px; }
+.tabela b { display: block; font-size: 14px; margin-bottom: 4px; }
+.tabela i { font-style: normal; display: flex; justify-content: space-between; border-top: 1px dashed #E5E7EB; padding-top: 4px; margin-top: 4px; }
+.carimbo { position: absolute; left: -34px; bottom: -26px; background: var(--laranja); color: var(--marinho-fundo); font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 24px;
+  padding: 8px 18px 6px 14px; border-radius: 16px; transform: rotate(-8deg); display: flex; align-items: center; gap: 8px; box-shadow: 0 10px 24px rgba(0,0,0,.3); }
+.carimbo svg { width: 26px; height: 20px; }
+.anima .passo { opacity: 0; transform: translateY(8px); animation: entra .35s ease-out forwards; }
+.anima .passo:nth-child(1) { animation-delay: .4s; }
+.anima .passo:nth-child(2) { animation-delay: 1.3s; }
+.anima .passo:nth-child(3) { animation-delay: 2.3s; }
+.anima .passo:nth-child(4) { animation-delay: 3.1s; }
+.anima .passo:nth-child(5) { animation-delay: 4.1s; }
+.anima .carimbo { opacity: 0; animation: carimba .45s cubic-bezier(.2, 1.6, .4, 1) 4.9s forwards; }
+@keyframes entra { to { opacity: 1; transform: none; } }
+@keyframes carimba { from { opacity: 0; transform: rotate(-8deg) scale(1.8); } to { opacity: 1; transform: rotate(-8deg) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .anima .passo, .anima .carimbo { animation: none; opacity: 1; transform: rotate(-8deg); } .anima .passo { transform: none; } }
+
+/* pacotes */
+.pacotes { padding: 40px 0 80px; }
+.pacotes h2 { font-size: clamp(36px, 4.6vw, 56px); font-weight: 800; letter-spacing: -1px; color: var(--marinho); max-width: 20ch; }
+.pacotes .intro { color: var(--apagado); max-width: 56ch; margin: 12px 0 40px; }
+.grade { display: grid; grid-template-columns: 1fr 1.12fr 1fr; gap: 22px; align-items: center; }
+.pacote { background: #fff; border-radius: 26px; padding: 30px 28px; border: 2px solid #F1E2D8; }
+.pacote h3 { font-size: 34px; font-weight: 800; color: var(--marinho); }
+.pacote .para { color: var(--apagado); margin: 4px 0 18px; min-height: 3em; }
+.preco { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 52px; color: var(--marinho); line-height: 1; }
+.preco small { font-family: Figtree, sans-serif; font-size: 16px; font-weight: 500; color: var(--apagado); }
+.pacote ul { list-style: none; padding: 0; margin: 22px 0 26px; display: flex; flex-direction: column; gap: 10px; }
+.pacote li { display: flex; gap: 10px; align-items: flex-start; }
+.pacote li svg { flex: 0 0 20px; height: 20px; margin-top: 3px; color: var(--laranja); }
+.pacote .acoes { display: flex; flex-direction: column; gap: 10px; }
+.pacote .btn.cheio { width: 100%; }
+.pacote .btn.texto { min-height: 44px; color: var(--laranja-forte); background: transparent; }
+.pacote.destaque { background: var(--laranja); border-color: var(--laranja); color: var(--marinho-fundo); padding: 40px 32px; box-shadow: 0 24px 50px rgba(194, 65, 12, .28); }
+.pacote.destaque h3, .pacote.destaque .preco { color: var(--marinho-fundo); }
+.pacote.destaque .para, .pacote.destaque .preco small { color: #3A1C0B; }
+.pacote.destaque li svg { color: var(--marinho); }
+.pacote.destaque .btn.cheio { background: var(--marinho); color: #fff; box-shadow: 0 6px 0 var(--marinho-fundo); }
+.pacote.destaque .btn.texto { color: var(--marinho-fundo); }
+.pacote .selo { display: inline-block; background: var(--marinho); color: #fff; font-weight: 700; font-size: 14px; padding: 4px 12px; border-radius: 999px; margin-bottom: 12px; }
+
+/* tabela de comparação */
+.compara { background: #fff; padding: 72px 0; }
+.compara h2 { font-size: clamp(30px, 3.6vw, 44px); color: var(--marinho); margin-bottom: 28px; }
+.rolagem { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 640px; }
+th, td { padding: 14px 12px; text-align: center; border-bottom: 1px solid #F1E2D8; }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-family: 'Baloo 2', sans-serif; font-size: 22px; color: var(--marinho); }
+thead th.meio { color: var(--laranja-forte); }
+td.meio { background: #FFF3EA; }
+td .sim { color: var(--laranja-forte); font-weight: 800; }
+td .nao { color: #A0A6B8; }
+
+/* começo */
+.comeco { padding: 72px 0; }
+.comeco h2 { font-size: clamp(30px, 3.6vw, 44px); color: var(--marinho); margin-bottom: 30px; }
+.passos { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; counter-reset: p; }
+.passos li { counter-increment: p; position: relative; padding-top: 64px; }
+.passos li::before { content: counter(p); position: absolute; top: 0; left: 0; width: 50px; height: 50px; border-radius: 50%; background: var(--marinho); color: #fff;
+  font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 26px; display: grid; place-items: center; }
+.passos h3 { font-size: 24px; color: var(--marinho); margin-bottom: 6px; }
+.passos p { margin: 0; color: var(--apagado); }
+
+/* perguntas */
+.perguntas { padding: 0 0 80px; }
+.perguntas h2 { font-size: clamp(30px, 3.6vw, 44px); color: var(--marinho); margin-bottom: 20px; }
+details { background: #fff; border: 2px solid #F1E2D8; border-radius: 18px; padding: 0 22px; margin-bottom: 12px; max-width: 820px; }
+summary { cursor: pointer; font-weight: 700; font-size: 18px; padding: 18px 0; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: '+'; color: var(--laranja-forte); font-size: 26px; line-height: 1; }
+details[open] summary::after { content: '–'; }
+details p { margin: 0 0 18px; color: var(--apagado); max-width: 70ch; }
+
+/* fim */
+.chamada { background: var(--laranja); color: var(--marinho-fundo); padding: 64px 0; }
+.chamada .wrap { display: flex; flex-wrap: wrap; gap: 24px; align-items: center; justify-content: space-between; }
+.chamada h2 { font-size: clamp(32px, 4vw, 52px); max-width: 18ch; }
+.chamada .btn.cheio { background: var(--marinho); color: #fff; box-shadow: 0 6px 0 var(--marinho-fundo); }
+footer { background: var(--marinho-fundo); color: #AEB7CF; font-size: 14px; padding: 32px 0; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: space-between; }
+footer a { color: #fff; }
+
+@media (max-width: 900px) {
+  .heroi .wrap { grid-template-columns: 1fr; gap: 40px; }
+  .celular { justify-self: center; transform: none; }
+  .carimbo { left: -4px; }
+  .grade { grid-template-columns: 1fr; }
+  .passos { grid-template-columns: 1fr; }
+  .top nav .some { display: none; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="marca" href="/planos.html" aria-label="Fechaê, página inicial"><img src="/logo.svg" alt=""><span class="wordmark" aria-hidden="true">fecha<span class="e">e<svg viewBox="0 0 48 32"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
+    <nav aria-label="Menu"><a class="some" href="#pacotes">Pacotes</a><a class="some" href="#perguntas">Dúvidas</a><a class="entrar" href="/">Entrar</a></nav>
+  </div>
+</header>
+
+<main>
+<section class="heroi">
+  <div class="wrap">
+    <div>
+      <h1><span class="aspas">“Oi”</span> no WhatsApp, venda fechada no fim do dia.</h1>
+      <p class="sub">O Fechaê junta suas conversas, o funil e um atendente com IA que responde na hora, manda a tabela certa e passa para você quem está pronto para comprar.</p>
+      <div class="botoes"><a class="btn cheio" data-cta="profissional" href="#pacotes">Testar 7 dias grátis</a><a class="btn linha" href="#pacotes">Ver os pacotes</a></div>
+      <p class="miudo">Sem cartão para testar. Cancele quando quiser.</p>
+    </div>
+    <div class="celular anima" aria-label="Exemplo: o atendente com IA responde um cliente e a venda fecha">
+      <div class="cab"><span class="avatar" aria-hidden="true">C</span><div><b>Carla</b><small>veio do anúncio do Instagram</small></div></div>
+      <div class="chat">
+        <div class="bolha cli passo">Oi! Vi o anúncio. Quanto fica a instalação?</div>
+        <div class="bolha ia passo">Oi, Carla! Qual o tamanho do ambiente? Já te mando a tabela 😊<small>atendente com IA</small></div>
+        <div class="bolha cli passo">Uma sala de 20 m²</div>
+        <div class="tabela passo"><div><b>Tabela: sala até 25 m²</b><i><span>À vista</span><span>R$ 1.890</span></i><i><span>Em 6x</span><span>R$ 330</span></i></div></div>
+        <div class="bolha cli passo">Fechado! Como eu pago?</div>
+      </div>
+      <div class="carimbo" role="img" aria-label="Venda fechada"><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Venda fechada</div>
+    </div>
+  </div>
+</section>
+
+<section class="pacotes" id="pacotes">
+  <div class="wrap">
+    <h2>Escolha o tamanho da sua operação.</h2>
+    <p class="intro">Os três pacotes têm o funil, as conversas e o atendente com IA. O que muda é o tamanho da equipe, quantos números de WhatsApp e o que vem junto. Todos começam com 7 dias grátis.</p>
+    <div class="grade">
+      <article class="pacote" data-plano="essencial">
+        <h3>Fecha</h3>
+        <p class="para">Para quem atende sozinho ou em dupla.</p>
+        <p class="preco"><span data-preco>R$ 197</span><small>/mês</small></p>
+        <ul>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>2 usuários e 1 número de WhatsApp</li>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Funil de vendas e conversas de WhatsApp e e-mail num lugar só</li>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Atendente com IA que responde e manda a tabela certa</li>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Fluxos automáticos e áudio virando texto</li>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Suporte por e-mail</li>
+        </ul>
+        <div class="acoes"><a class="btn cheio" data-cta="essencial" href="/#/cadastro?plano=essencial">Testar o Fecha grátis</a><a class="btn texto" data-pagar="essencial" href="/#/cadastro?plano=essencial&amp;pagar=1">Assinar já</a></div>
+      </article>
+
+      <article class="pacote destaque" data-plano="profissional">
+        <span class="selo">Recomendado para equipes</span>
+        <h3>Fecha Mais</h3>
+        <p class="para">Para a equipe que vende todo dia e quer ir atrás do cliente.</p>
+        <p class="preco"><span data-preco>R$ 397</span><small>/mês</small></p>
+        <ul>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Tudo do Fecha, com 5 usuários e 3 números de WhatsApp</li>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Campanhas por e-mail e WhatsApp, com "sair da lista" automático</li>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Assistente: você pede e ele faz no CRM (tarefas, etapas, resumos, rascunhos de resposta)</li>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Use o Fechaê de dentro do app do Claude</li>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Suporte por WhatsApp</li>
+        </ul>
+        <div class="acoes"><a class="btn cheio" data-cta="profissional" href="/#/cadastro?plano=profissional">Testar o Fecha Mais grátis</a><a class="btn texto" data-pagar="profissional" href="/#/cadastro?plano=profissional&amp;pagar=1">Assinar já</a></div>
+      </article>
+
+      <article class="pacote" data-plano="empresa">
+        <h3>Fecha Tudo</h3>
+        <p class="para">Para quem vende com várias marcas ou para outros países.</p>
+        <p class="preco"><span data-preco>R$ 797</span><small>/mês</small></p>
+        <ul>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Tudo do Fecha Mais, com 15 usuários e 10 números de WhatsApp</li>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Tradução automática: você escreve em português e o cliente recebe em espanhol ou inglês</li>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Várias marcas na mesma conta, cada uma com funil e números próprios</li>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Implantação feita junto com a nossa equipe</li>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Suporte prioritário por WhatsApp</li>
+        </ul>
+        <div class="acoes"><a class="btn cheio" data-cta="empresa" href="/#/cadastro?plano=empresa">Testar o Fecha Tudo grátis</a><a class="btn texto" data-pagar="empresa" href="/#/cadastro?plano=empresa&amp;pagar=1">Assinar já</a></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="compara" aria-labelledby="t-compara">
+  <div class="wrap">
+    <h2 id="t-compara">O que cada pacote libera</h2>
+    <div class="rolagem">
+      <table>
+        <thead><tr><th scope="col"><span class="sr">Recurso</span></th><th scope="col">Fecha</th><th scope="col" class="meio">Fecha Mais</th><th scope="col">Fecha Tudo</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Usuários</th><td>2</td><td class="meio">5</td><td>15</td></tr>
+          <tr><th scope="row">Números de WhatsApp</th><td>1</td><td class="meio">3</td><td>10</td></tr>
+          <tr><th scope="row">Funil, contatos e tarefas</th><td><span class="sim">Sim</span></td><td class="meio"><span class="sim">Sim</span></td><td><span class="sim">Sim</span></td></tr>
+          <tr><th scope="row">Conversas de WhatsApp e e-mail</th><td><span class="sim">Sim</span></td><td class="meio"><span class="sim">Sim</span></td><td><span class="sim">Sim</span></td></tr>
+          <tr><th scope="row">Atendente com IA e fluxos automáticos</th><td><span class="sim">Sim</span></td><td class="meio"><span class="sim">Sim</span></td><td><span class="sim">Sim</span></td></tr>
+          <tr><th scope="row">Áudio do cliente vira texto</th><td><span class="sim">Sim</span></td><td class="meio"><span class="sim">Sim</span></td><td><span class="sim">Sim</span></td></tr>
+          <tr><th scope="row">Campanhas por e-mail e WhatsApp</th><td><span class="nao">Não</span></td><td class="meio"><span class="sim">Sim</span></td><td><span class="sim">Sim</span></td></tr>
+          <tr><th scope="row">Assistente e conexão com o app do Claude</th><td><span class="nao">Não</span></td><td class="meio"><span class="sim">Sim</span></td><td><span class="sim">Sim</span></td></tr>
+          <tr><th scope="row">Tradução automática (espanhol e inglês)</th><td><span class="nao">Não</span></td><td class="meio"><span class="nao">Não</span></td><td><span class="sim">Sim</span></td></tr>
+          <tr><th scope="row">Várias marcas na mesma conta</th><td><span class="nao">Não</span></td><td class="meio"><span class="nao">Não</span></td><td><span class="sim">Sim</span></td></tr>
+          <tr><th scope="row">Suporte</th><td>E-mail</td><td class="meio">WhatsApp</td><td>WhatsApp prioritário e implantação</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="comeco" aria-labelledby="t-comeco">
+  <div class="wrap">
+    <h2 id="t-comeco">Em poucos minutos você já está atendendo</h2>
+    <ol class="passos">
+      <li><h3>Crie a conta</h3><p>Nome da empresa, e-mail e senha. Você entra na hora, sem cartão.</p></li>
+      <li><h3>Conecte o WhatsApp</h3><p>Leia o QR code com o celular, como no WhatsApp Web. As conversas começam a chegar no funil.</p></li>
+      <li><h3>Ensine o atendente</h3><p>Escreva o que você vende e suba suas tabelas. A IA passa a responder e chama você quando o cliente quer fechar.</p></li>
+    </ol>
+  </div>
+</section>
+
+<section class="perguntas" id="perguntas" aria-labelledby="t-perguntas">
+  <div class="wrap">
+    <h2 id="t-perguntas">Dúvidas</h2>
+    <details><summary>Preciso de cartão para testar?</summary><p>Não. São 7 dias grátis com tudo do pacote escolhido. No fim do teste, você decide se assina; se não assinar, o acesso pausa e nada é apagado.</p></details>
+    <details><summary>A inteligência artificial tem custo extra?</summary><p>A IA usa a sua própria chave da Anthropic, criada em poucos minutos. Você paga direto para ela só o que usar: conversas curtas custam centavos.</p></details>
+    <details><summary>O meu número de WhatsApp pode ser bloqueado?</summary><p>A conexão por QR code não é oficial do WhatsApp. Para atender quem chama, funciona bem; disparar muitas mensagens para quem não conhece você pode levar o WhatsApp a restringir o número. O Fechaê controla o ritmo das campanhas para diminuir esse risco.</p></details>
+    <details><summary>Como eu cancelo?</summary><p>Na tela Ajustes › Plano, a qualquer momento. A cobrança para na hora e você usa até o fim do mês já pago. Na primeira assinatura, se desistir em até 7 dias da primeira cobrança, devolvemos o valor.</p></details>
+    <details><summary>Os dados da minha empresa ficam separados?</summary><p>Sim. Cada empresa tem um banco de dados próprio, e só a sua equipe acessa. Os seus contatos são seus: veja os <a href="/termos.html">termos de uso e privacidade</a>.</p></details>
+  </div>
+</section>
+
+<section class="chamada">
+  <div class="wrap">
+    <h2>Seu próximo cliente pode chegar hoje. Esteja pronto.</h2>
+    <a class="btn cheio" data-cta="profissional" href="/#/cadastro?plano=profissional">Testar 7 dias grátis</a>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Fechaê é um serviço de KC Financial Solutions Ltda, CNPJ 62.564.150/0001-85, Rua Dom Pedro II, 262, Centro, Ponta Porã/MS.</span>
+    <span><a href="mailto:contato@agro-vox.com">contato@agro-vox.com</a> &nbsp; <a href="/termos.html">Termos e privacidade</a></span>
+  </div>
+</footer>
+
+<script>
+// Preços e botões vêm do próprio sistema: com o cadastro aberto, os botões levam para criar a conta
+// (já com o pacote escolhido); fechado, viram um e-mail de interesse.
+(async () => {
+  let info = null;
+  try { info = await (await fetch('/api/plans')).json(); } catch {}
+  const brl = (c) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+  for (const p of info?.plans || []) {
+    const el = document.querySelector(`[data-plano="${p.key}"] [data-preco]`);
+    if (el) el.textContent = brl(p.cents);
+  }
+  if (info?.open) {
+    document.querySelectorAll('.heroi [data-cta]').forEach((a) => { a.href = '/#/cadastro?plano=profissional'; });
+    return;
+  }
+  const nome = (k) => ({ essencial: 'Fecha', profissional: 'Fecha Mais', empresa: 'Fecha Tudo' })[k] || 'Fechaê';
+  document.querySelectorAll('[data-cta]').forEach((a) => {
+    if (a.closest('.heroi')) return; // no topo, o botão leva até os pacotes
+    a.href = `mailto:contato@agro-vox.com?subject=${encodeURIComponent(`Quero o ${nome(a.dataset.cta)}`)}`;
+    a.textContent = `Quero o ${nome(a.dataset.cta)}`;
+  });
+  document.querySelectorAll('[data-pagar]').forEach((a) => a.remove());
+  document.querySelectorAll('.heroi .miudo').forEach((p) => { p.textContent = 'Cadastro abrindo em breve. Escolha o pacote e fale com a gente.'; });
+})();
+</script>
+</body>
+</html>

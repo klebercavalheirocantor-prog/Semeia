@@ -3,11 +3,15 @@
 // A empresa nº 1 (AgroVox) e as criadas pelo comando "nova-empresa" são "interno": sem cobrança e sem limite.
 import { platform, accountIds } from './db.js';
 
+// Pacotes: Fecha (básico), Fecha Mais (intermediário) e Fecha Tudo (avançado). As chaves internas não mudam.
+// features: o que cada pacote libera além do básico (funil, conversas, atendente com IA e fluxos, áudio em texto).
 export const PLANS = {
-  essencial: { name: 'Essencial', cents: 19700, users: 2, whatsapp: 1 },
-  profissional: { name: 'Profissional', cents: 39700, users: 5, whatsapp: 3 },
-  empresa: { name: 'Empresa', cents: 79700, users: 15, whatsapp: 10 },
+  essencial: { name: 'Fecha', cents: 19700, users: 2, whatsapp: 1, features: [] },
+  profissional: { name: 'Fecha Mais', cents: 39700, users: 5, whatsapp: 3, features: ['campanhas', 'assistente'] },
+  empresa: { name: 'Fecha Tudo', cents: 79700, users: 15, whatsapp: 10, features: ['campanhas', 'assistente', 'traducao', 'marcas'] },
 };
+export const FEATURE_NAMES = { campanhas: 'Campanhas', assistente: 'Assistente', traducao: 'Tradução automática', marcas: 'Várias marcas' };
+const ALL = Object.keys(FEATURE_NAMES);
 export const TRIAL_DAYS = 7;
 export const signupOpen = () => process.env.CADASTRO_ABERTO === '1';
 
@@ -29,6 +33,14 @@ export function canUse(id) {
   return a.status === 'teste' && (a.trial_until || 0) > Date.now();
 }
 
+// O pacote da empresa libera este recurso? (interno: tudo)
+export function hasFeature(id, f) {
+  const a = accountRow(id);
+  return !a || a.plan === 'interno' || !!PLANS[a.plan]?.features.includes(f);
+}
+// Qual é o pacote mais barato que libera o recurso (para a mensagem de "mude de pacote").
+export const planFor = (f) => Object.values(PLANS).find((p) => p.features.includes(f))?.name || '';
+
 // Limites do plano (interno: sem limite).
 export function limits(id) {
   const a = accountRow(id);
@@ -37,9 +49,9 @@ export function limits(id) {
 
 export function billingInfo(id) {
   const a = accountRow(id);
-  if (!a || a.plan === 'interno') return { plan: 'interno', status: 'ativo', blocked: false };
+  if (!a || a.plan === 'interno') return { plan: 'interno', status: 'ativo', blocked: false, features: ALL };
   const left = a.status === 'teste' ? Math.max(0, Math.ceil(((a.trial_until || 0) - Date.now()) / 864e5)) : null;
-  return { plan: a.plan, plan_name: PLANS[a.plan]?.name || a.plan, status: a.status, trial_days_left: left, blocked: !canUse(id), paid_until: a.paid_until || null,
+  return { plan: a.plan, plan_name: PLANS[a.plan]?.name || a.plan, status: a.status, trial_days_left: left, blocked: !canUse(id), paid_until: a.paid_until || null, features: PLANS[a.plan]?.features || [],
     plans: Object.entries(PLANS).map(([key, p]) => ({ key, ...p })) };
 }
 

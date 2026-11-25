@@ -19,7 +19,7 @@ import { transcribeMessage, groqKey } from './transcribe.js';
 import { perfil } from './perfil.js';
 import { talk } from './assistente.js';
 import { mountMcp, newLink, revokeLink, linkInfo } from './mcp.js';
-import { PLANS, TRIAL_DAYS, signupOpen, canUse, limits, billingInfo, startTrial, checkout, syncSubscription, cancel, logAccess } from './billing.js';
+import { PLANS, TRIAL_DAYS, signupOpen, canUse, limits, billingInfo, startTrial, checkout, syncSubscription, cancel, logAccess, hasFeature, planFor, FEATURE_NAMES } from './billing.js';
 import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES, markReadWeb } from './waweb.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -186,6 +186,11 @@ app.use('/api', (req, res, next) => {
     req.account = acc;
     // Teste acabou (ou assinatura cancelada): só dá para ver o plano e pagar.
     if (!canUse(acc) && !/^\/(me|billing|logout|stream)(\/|$)/.test(req.path)) return res.status(402).json({ error: 'Seu período grátis acabou. Escolha um plano em Ajustes › Plano para continuar.', billing: true });
+    // Recurso que o pacote não libera: avisa qual pacote libera.
+    const f = /^\/campaigns(\/|$)/.test(req.path) ? 'campanhas' : /^\/(assistente|mcp-link)(\/|$)/.test(req.path) ? 'assistente'
+      : req.method === 'POST' && req.path === '/brands' ? 'marcas' : /^\/messages\/\d+\/translate$/.test(req.path) ? 'traducao'
+      : req.method === 'POST' && /^\/waweb\/\d+\/options$/.test(req.path) && req.body?.translate_to ? 'traducao' : null;
+    if (f && !hasFeature(acc, f)) return res.status(402).json({ error: `${FEATURE_NAMES[f]} faz parte do pacote ${planFor(f)}. Mude de pacote em Ajustes › Plano.`, billing: true });
     // Marca escolhida na setinha do menu (ex.: AgroVox, AgroPool). Vem em todo pedido da tela.
     const b = Number(req.get('x-brand')) || 1;
     req.brand = one('select id from brands where id = ?', b) ? b : 1;
