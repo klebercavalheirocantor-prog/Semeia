@@ -99,7 +99,7 @@ function Editor({ camp, onSaved }) {
   return html`<div class="camp-edit">
     <div class="col" style="gap:var(--s-4)">
       <div class="card pad form"><h2>1. Nome e canal</h2>
-        <label class="field">Nome da campanha<input value=${f.name} placeholder="Ex.: Promoção sinal GPS novembro" onInput=${(e) => set('name', e.target.value)} /></label>
+        <label class="field">Nome da campanha<input value=${f.name} placeholder="Ex.: Promoção de novembro" onInput=${(e) => set('name', e.target.value)} /></label>
         <div class="row">${['whatsapp', 'email'].map((c) => html`<label class=${`choice ${f.channel === c ? 'on' : ''}`}><input type="radio" name="ch" disabled=${frozen} checked=${f.channel === c}
           onChange=${() => setF((x) => ({ ...x, channel: c, ...(c === 'email' ? EMAIL_RHYTHM : WA_RHYTHM) }))} />${c === 'email' ? 'E-mail' : 'WhatsApp'}</label>`)}</div>
       </div>

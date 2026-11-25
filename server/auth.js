@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { one, run, now } from './db.js';
+import { one, run, now, accountId } from './db.js';
 
 const SESSION_DAYS = 30;
 
@@ -16,10 +16,11 @@ export function checkPassword(pw, stored) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+// O cookie leva a empresa junto: "<empresa>.<token>". O token só vale no banco daquela empresa.
 export function createSession(userId) {
   const token = crypto.randomBytes(32).toString('hex');
   run('insert into sessions(token, user_id, expires_at) values(?, ?, ?)', token, userId, now() + SESSION_DAYS * 864e5);
-  return token;
+  return `${accountId()}.${token}`;
 }
 
 export function cookieFor(token, maxAgeSec = SESSION_DAYS * 86400) {
@@ -32,8 +33,15 @@ function readCookie(req, name) {
   return m ? m[1] : null;
 }
 
+// Cookie antigo, sem empresa (Semeia de uma empresa só): é da empresa nº 1.
+export function sessionOf(req) {
+  const m = String(readCookie(req, 'sid') || '').match(/^(?:(\d+)\.)?([0-9a-f]{64})$/);
+  return m ? { account: Number(m[1] || 1), token: m[2] } : null;
+}
+
+// Usuário logado, procurado no banco da empresa da vez (o pedido já entrou na empresa do cookie).
 export function loadUser(req) {
-  const token = readCookie(req, 'sid');
+  const token = sessionOf(req)?.token;
   if (!token) return null;
   const u = one(
     `select u.id, u.name, u.email, u.is_admin, u.role_id, r.rights from sessions s

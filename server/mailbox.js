@@ -1,7 +1,7 @@
 // Caixa de e-mail da empresa (ex.: contato@agro-vox.com, no Gmail), lida pelo CRM a cada minuto (IMAP).
 // Só entra no CRM e-mail de quem já é contato (os clientes das campanhas); o resto da caixa fica de fora.
 // A resposta vira conversa no CRM: marca "respondeu" na campanha, SAIR tira da lista e o fluxo da empresa roda.
-import { one, all, run, now } from './db.js';
+import { one, all, run, now, accountId } from './db.js';
 import { emit } from './bus.js';
 import { handleMessage } from './inbound.js';
 import { findContactByPoint, normEmail } from './crm.js';
@@ -96,10 +96,11 @@ export async function pollMailbox(channel) {
   return n;
 }
 
-let busy = false;
+const busy = new Set();
 export async function tickMailboxes() {
-  if (busy) return;
-  busy = true;
+  const acc = accountId();
+  if (busy.has(acc)) return;
+  busy.add(acc);
   try {
     for (const ch of all("select * from channels where kind = 'email' and status != 'disabled'")) {
       try {
@@ -112,7 +113,7 @@ export async function tickMailboxes() {
       }
       emit('config');
     }
-  } finally { busy = false; }
+  } finally { busy.delete(acc); }
 }
 
 // Resposta pelo CRM (atendente ou robô) numa conversa de e-mail: "Re: assunto", no mesmo fio.

@@ -1,14 +1,14 @@
 -- fk-off
--- Duas empresas no mesmo CRM (AgroVox e AgroPool): contatos, etiquetas e equipe em comum;
--- funis/leads, canais, campanhas, fluxos e a lista de quem pediu para sair, separados por empresa.
+-- Mais de uma marca no mesmo CRM (ex.: AgroVox e AgroPool): contatos, etiquetas e equipe em comum;
+-- funis/leads, canais, campanhas, fluxos e a lista de quem pediu para sair, separados por marca.
+-- (Banco que já tinha rodado esta migração ganhou também a marca 'AgroPool'; empresa nova começa só com a marca 1.)
 create table brands (
   id integer primary key,
   name text not null,
   created_at integer not null
 );
 insert into brands(id, name, created_at) values
-  (1, coalesce((select json_extract(value, '$.company') from settings where key = 'general' and json_extract(value, '$.company') not in ('', 'Minha empresa')), 'AgroVox'), unixepoch() * 1000),
-  (2, 'AgroPool', unixepoch() * 1000);
+  (1, coalesce((select json_extract(value, '$.company') from settings where key = 'general' and json_extract(value, '$.company') != ''), 'Minha empresa'), unixepoch() * 1000);
 
 alter table pipelines add column brand_id integer not null default 1 references brands(id);
 alter table campaigns add column brand_id integer not null default 1 references brands(id);

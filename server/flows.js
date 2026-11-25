@@ -7,9 +7,10 @@ import { fillVars } from './outbound.js';
 import { aiReply, aiClassify, aiAgent } from './ai.js';
 import { logEvent, httpError } from './crm.js';
 import { saveFile } from './meta.js';
-import { UPLOAD_DIR } from './db.js';
+import { uploadDir, accountId } from './db.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { perfil } from './perfil.js';
 import { fileURLToPath } from 'node:url';
 
 const H = 3600e3;
@@ -208,7 +209,7 @@ function realIO(conv, vars) {
       run('update conversations set last_message_at = ? where id = ?', now(), conv.id);
       emit('message', { conversation_id: conv.id, lead_id: c.lead_id });
       try {
-        const file = f && { buf: fs.readFileSync(path.join(UPLOAD_DIR, f.path)), name: f.name, mime: f.mime };
+        const file = f && { buf: fs.readFileSync(path.join(uploadDir(), f.path)), name: f.name, mime: f.mime };
         const r = await sendMessage(channel, c.external_id, file ? { text, file } : { text, buttons });
         run("update messages set external_id = ?, status = case when status = 'pending' then 'sent' else status end where id = ?", r.id || null, mid);
       } catch (e) {
@@ -273,7 +274,8 @@ function saver(runId, st) {
 
 // Uma conversa por vez: mensagens que chegam juntas entram na fila daquela conversa.
 const chains = new Map();
-function serial(key, fn) {
+function serial(conv, fn) {
+  const key = `${accountId()}:${conv}`; // conversa 10 da empresa A não é a conversa 10 da empresa B
   const p = (chains.get(key) || Promise.resolve()).then(fn).catch((e) => console.error('fluxo', e));
   chains.set(key, p);
   p.finally(() => { if (chains.get(key) === p) chains.delete(key); });
@@ -379,10 +381,11 @@ export function flowOnHuman(conversationId) {
   emit('flow', {});
 }
 
-let ticking = false;
+const ticking = new Set();
 export async function tickFlows(t = now()) {
-  if (ticking) return;
-  ticking = true;
+  const acc = accountId();
+  if (ticking.has(acc)) return;
+  ticking.add(acc);
   try {
     for (const r of all("select * from flow_runs where state in ('waiting_reply','waiting_time') and wake_at <= ? order by wake_at limit 50", t)) {
       await serial(r.conversation_id, async () => {
@@ -391,7 +394,7 @@ export async function tickFlows(t = now()) {
         return resume(cur, { outcome: { port: cur.state === 'waiting_time' ? 'next' : 'sem resposta' } });
       });
     }
-  } finally { ticking = false; }
+  } finally { ticking.delete(acc); }
 }
 
 // ---------- simulador (o editor testa o fluxo sem mandar nada de verdade)
@@ -499,7 +502,9 @@ export function emailGraph(items) {
 const OLD_NAME = 'Resposta à campanha: sinais GPS';
 export function initFlows() {
   run("update flow_runs set state = 'failed', error = 'servidor reiniciado no meio do passo' where state = 'running'");
-  if (!getSetting('ai')) setSetting('ai', { model: 'claude-haiku-5-5', persona: '', knowledge: DEFAULT_KNOWLEDGE });
+  if (!getSetting('ai')) setSetting('ai', { model: 'claude-haiku-5-5', persona: '', knowledge: perfil().conhecimento });
+  // Fluxos prontos com as tabelas de preço: só no perfil da AgroVox. Empresa nova monta os dela no editor.
+  if (!perfil().fluxosIniciais) return;
   if (getSetting('flows_seed', 0) < 2) seedV2();
   seedEmailFlow();
   seedAdFlow();
@@ -539,14 +544,4 @@ function seedAdFlow() {
   setSetting('flows_seed_ad', 1);
 }
 
-const DEFAULT_KNOWLEDGE = `Empresa: AgroVox (site www.agro-vox.com, Instagram @agrovoxtech).
-O que vendemos: sinal de correção para piloto automático / GPS agrícola, com ativação via código (sem precisar levar o equipamento).
-Sinais John Deere: SF2, SF3, SF-RTK e ativação SF3 Ready.
-Sinais Trimble: CenterPoint RTX e RangePoint RTX.
-Desconto: até 50% (o desconto varia por sinal).
-Precisão: até 2,5 cm (depende do sinal).
-Pagamento: cartão, com prazo.
-Suporte de quem é do campo.
-Para passar o valor certo precisamos do modelo da antena (ex.: StarFire 6000, 7000) e do monitor (ex.: 4600, 4640, G5) — ou uma foto do monitor.
-
-PREÇOS: (preencha aqui a tabela de valores por sinal e prazo. Enquanto estiver vazio, a IA passa para um atendente quando o cliente pedir valor.)`;
+// A base de conhecimento inicial de cada empresa vem do perfil dela (perfil.js).

@@ -416,7 +416,7 @@ function CatalogEditor({ d, set }) {
     ${items.map((it, i) => html`<div class="fl-cat">
       ${it.file_id ? html`<img src=${`/api/files/${it.file_id}`} alt=${`Tabela ${it.name}`} />` : html`<div class="fl-cat-empty">sem imagem</div>`}
       <div class="col" style="gap:4px;min-width:0">
-        <input aria-label="Nome" placeholder="Ex.: Antena StarFire 6000" value=${it.name || ''} onInput=${(e) => setItem(i, { name: e.target.value })} />
+        <input aria-label="Nome" placeholder="Ex.: Plano Básico" value=${it.name || ''} onInput=${(e) => setItem(i, { name: e.target.value })} />
         <input aria-label="Modelos" placeholder="Modelos, separados por vírgula: 6000, SF6000" value=${(it.keywords || []).join(', ')}
           onInput=${(e) => setItem(i, { keywords: e.target.value.split(',').map((k) => k.trim()) })} />
         <div class="row"><label class="btn sm">${busy === i ? 'Enviando…' : it.file_id ? 'Trocar imagem' : 'Escolher imagem'}<input type="file" accept="image/jpeg,image/png" class="sr-only" onChange=${(e) => upload(i, e.target.files[0])} /></label>

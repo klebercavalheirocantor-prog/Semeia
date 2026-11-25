@@ -8,7 +8,7 @@ import { sendTemplateTo, sendEmail, fillVars, sendWebTo } from './outbound.js';
 import { isWeb, webStatus } from './waweb.js';
 import { recordCampaignEmail } from './mailbox.js';
 import { templateHeaderMedia, uploadMedia } from './meta.js';
-import { UPLOAD_DIR } from './db.js';
+import { uploadDir, accountId } from './db.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -18,7 +18,7 @@ async function headerMedia(camp, channel) {
   if (cached?.id && cached.channel_id === channel.id && cached.file_id === camp.header_file_id && now() - cached.at < 25 * 864e5) return cached.id;
   const f = one('select * from files where id = ?', camp.header_file_id);
   if (!f) throw Object.assign(new Error('A imagem da campanha foi apagada: escolha outra'), { fatal: true });
-  const id = await uploadMedia(channel, { buf: fs.readFileSync(path.join(UPLOAD_DIR, f.path)), name: f.name, mime: f.mime });
+  const id = await uploadMedia(channel, { buf: fs.readFileSync(path.join(uploadDir(), f.path)), name: f.name, mime: f.mime });
   run('update campaigns set header_media = ? where id = ?', JSON.stringify({ id, channel_id: channel.id, file_id: f.id, at: now() }), camp.id);
   camp.header_media = JSON.stringify({ id, channel_id: channel.id, file_id: f.id, at: now() });
   return id;
@@ -208,15 +208,16 @@ export async function stepCampaign(camp, t = now()) {
   return error ? 'failed' : 'sent';
 }
 
-let busy = false;
+const busy = new Set(); // empresas com campanha andando agora
 export async function tickCampaigns() {
-  if (busy) return;
-  busy = true;
+  const acc = accountId();
+  if (busy.has(acc)) return;
+  busy.add(acc);
   try {
     for (const camp of all("select * from campaigns where status = 'running' order by id")) {
       try { await stepCampaign(camp); } catch (e) { console.error('campanha', camp.id, e); }
     }
-  } finally { busy = false; }
+  } finally { busy.delete(acc); }
 }
 
 // Mensagem que chegou de um contato: conta como resposta da campanha ou como pedido de saída.

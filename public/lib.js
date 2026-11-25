@@ -2,7 +2,7 @@ import { html, render, useState, useEffect, useRef, useMemo, useCallback } from 
 export { html, render, useState, useEffect, useRef, useMemo, useCallback };
 
 // ---------- API
-// Empresa escolhida na setinha do menu (AgroVox, AgroPool...). Vai em todo pedido; cada aba lembra a sua.
+// Marca escolhida na setinha do menu (quando a empresa tem mais de uma). Vai em todo pedido; cada aba lembra a sua.
 const BRAND_KEY = 'crm-brand';
 export const currentBrand = () => { try { return Number(localStorage.getItem(BRAND_KEY)) || 1; } catch { return 1; } };
 export function switchBrand(id) {

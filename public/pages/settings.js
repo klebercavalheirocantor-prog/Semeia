@@ -59,18 +59,18 @@ function EmailSettings() {
   return html`<div class="col" style="max-width:640px"><div class="card pad form"><h2>E-mail para campanhas · ${company}</h2>
     <p class="small muted">O envio é feito pela <strong>Resend</strong> (resend.com): verifique o domínio da empresa e gere uma chave de API (de preferência só com permissão de envio).
       O plano grátis envia 100 por dia; para listas grandes use um plano pago.</p>
-    <label class="field">Remetente<input autocomplete="off" name="email-from" placeholder="AgroVox <contato@envio.agro-vox.com>" value=${f.from} onInput=${set('from')} /></label>
-    <label class="field">Responder para (opcional)<input type="email" autocomplete="off" name="email-reply-to" placeholder="contato@agro-vox.com" value=${f.reply_to} onInput=${set('reply_to')} /></label>
+    <label class="field">Remetente<input autocomplete="off" name="email-from" placeholder="Sua Empresa <contato@envio.suaempresa.com.br>" value=${f.from} onInput=${set('from')} /></label>
+    <label class="field">Responder para (opcional)<input type="email" autocomplete="off" name="email-reply-to" placeholder="contato@suaempresa.com.br" value=${f.reply_to} onInput=${set('reply_to')} /></label>
     <label class="field">Chave de API da Resend<input type="password" autocomplete="new-password" placeholder=${e.has_key ? '•••••••• salva (deixe vazio para manter)' : 're_...'} value=${f.api_key} onInput=${set('api_key')} /></label>
     <h3 style="margin-top:8px">Assinatura</h3>
     <p class="xs muted">Vai no fim de todo e-mail: "Abraço, ${f.sig_name || `Equipe ${company}`}", o botão do WhatsApp, Instagram e site clicáveis. A arte da campanha também abre o WhatsApp.</p>
     <label class="field">Nome na assinatura<input autocomplete="off" placeholder=${`Equipe ${company}`} value=${f.sig_name} onInput=${set('sig_name')} /></label>
     <div class="grid-2">
       <label class="field">WhatsApp (com DDD)<input autocomplete="off" inputmode="tel" placeholder="(67) 99999-9999" value=${f.whatsapp} onInput=${set('whatsapp')} /></label>
-      <label class="field">Instagram<input autocomplete="off" placeholder="@agrovoxtech" value=${f.instagram} onInput=${set('instagram')} /></label>
+      <label class="field">Instagram<input autocomplete="off" placeholder="@suaempresa" value=${f.instagram} onInput=${set('instagram')} /></label>
     </div>
-    <label class="field">Mensagem que já vem escrita no WhatsApp<input autocomplete="off" placeholder="Olá! Vim pelo e-mail e quero saber o valor do sinal." value=${f.whatsapp_text} onInput=${set('whatsapp_text')} /></label>
-    <label class="field">Site<input autocomplete="off" placeholder="www.agro-vox.com" value=${f.site} onInput=${set('site')} /></label>
+    <label class="field">Mensagem que já vem escrita no WhatsApp<input autocomplete="off" placeholder="Olá! Vim pelo e-mail e quero saber mais." value=${f.whatsapp_text} onInput=${set('whatsapp_text')} /></label>
+    <label class="field">Site<input autocomplete="off" placeholder="www.suaempresa.com.br" value=${f.site} onInput=${set('site')} /></label>
     <div class="field">Imagem acima do "Abraço" (o mascote)
       <div class="row">${f.sig_image_file_id ? html`<img class="camp-img" style="object-fit:contain" src=${`/api/files/${f.sig_image_file_id}`} alt="Imagem da assinatura" />` : html`<span class="small muted">Sem imagem</span>`}
         <label class="btn">${f.sig_image_file_id ? 'Trocar' : 'Escolher imagem'}<input type="file" accept="image/png,image/jpeg" class="sr-only" onChange=${(x) => pick(x.target.files[0])} /></label>
@@ -103,7 +103,7 @@ function MailboxSettings() {
       "SAIR" tira da lista e o fluxo "Resposta ao e-mail" manda a tabela de preço. E-mails de quem não é contato ficam só na caixa.</p>
     <p class="xs muted">No Gmail/Google Workspace: ative a verificação em duas etapas da conta e crie uma <strong>senha de app</strong> em
       myaccount.google.com › Segurança › Senhas de app. Cole aqui essa senha (não a senha normal).</p>
-    <label class="field">E-mail da caixa<input type="email" autocomplete="off" name="mailbox-address" placeholder="contato@agro-vox.com" value=${f.address} onInput=${set('address')} /></label>
+    <label class="field">E-mail da caixa<input type="email" autocomplete="off" name="mailbox-address" placeholder="contato@suaempresa.com.br" value=${f.address} onInput=${set('address')} /></label>
     <label class="field">Servidor IMAP<input autocomplete="off" name="mailbox-host" value=${f.imap_host} onInput=${set('imap_host')} /></label>
     <label class="field">Senha de app<input type="password" autocomplete="new-password" name="mailbox-pass" placeholder=${ch?.has_pass ? '•••••••• salva (deixe vazio para manter)' : 'abcd efgh ijkl mnop'} value=${f.imap_pass} onInput=${set('imap_pass')} /></label>
     ${ch && html`<p class="xs ${ch.mail_error ? 'error-text' : 'muted'}">${ch.mail_error ? `Erro na última conferida: ${ch.mail_error}` : ch.checked_at ? `Conferida às ${new Date(ch.checked_at).toLocaleTimeString('pt-BR')}` : 'Ainda não conferida'}</p>`}
@@ -147,7 +147,7 @@ function AiSettings() {
     <label class="field">Modelo<select value=${f.model} onChange=${set('model')}>
       <option value="claude-haiku-5-5">Claude Haiku (rápido e barato, recomendado)</option>
       <option value="claude-sonnet-5-5">Claude Sonnet (mais caprichado, custa mais)</option></select></label>
-    <label class="field">Quem é o atendente (opcional)<input placeholder="Ex.: Você é a Ana, da AgroVox, atendendo produtores rurais no WhatsApp." value=${f.persona} onInput=${set('persona')} /></label>
+    <label class="field">Quem é o atendente (opcional)<input placeholder="Ex.: Você é a Ana, da Sua Empresa, atendendo clientes no WhatsApp." value=${f.persona} onInput=${set('persona')} /></label>
     <label class="field">Base de conhecimento<textarea rows="16" value=${f.knowledge} onInput=${set('knowledge')}></textarea></label>
     <p class="xs muted">Escreva como se explicasse a um vendedor novo: produtos, preços, prazos, formas de pagamento, o que não fazemos. Se um preço não estiver aqui, a IA não inventa: passa para você.</p>
     <h3 style="margin-top:16px">Transcrição de áudio</h3>

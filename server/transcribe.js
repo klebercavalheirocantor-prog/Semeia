@@ -2,7 +2,7 @@
 // se não for português, a IA (Claude) traduz para português e a tradução fica em messages.translated_body.
 import fs from 'node:fs';
 import path from 'node:path';
-import { one, run, getSetting, UPLOAD_DIR } from './db.js';
+import { one, run, getSetting, uploadDir } from './db.js';
 import { brandKey, httpError } from './crm.js';
 import { emit } from './bus.js';
 import { translateIn } from './ai.js';
@@ -21,7 +21,7 @@ export async function transcribeMessage(messageId) {
   const key = groqKey(m.brand_id);
   if (!key) throw httpError(400, 'Cole a chave da Groq em Ajustes › Assistente de IA para transcrever áudios');
   const form = new FormData();
-  form.append('file', new Blob([fs.readFileSync(path.join(UPLOAD_DIR, m.file_path))], { type: m.file_mime.split(';')[0] }), `audio.${extOf(m.file_mime)}`);
+  form.append('file', new Blob([fs.readFileSync(path.join(uploadDir(), m.file_path))], { type: m.file_mime.split(';')[0] }), `audio.${extOf(m.file_mime)}`);
   form.append('model', 'whisper-large-v3-turbo');
   form.append('response_format', 'verbose_json');
   const res = await fetch(GROQ_URL, { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form });

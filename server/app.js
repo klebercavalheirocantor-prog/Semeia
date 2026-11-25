@@ -1,8 +1,8 @@
 import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
-import { one, all, run, now, tx, getSetting, setSetting, createPipeline, UPLOAD_DIR, DATA_DIR } from './db.js';
-import { hashPassword, checkPassword, createSession, cookieFor, loadUser, scope, can } from './auth.js';
+import { one, all, run, now, tx, getSetting, setSetting, createPipeline, createBrandPipeline, uploadDir, accountDir, inAccount, accountIds, accountId } from './db.js';
+import { hashPassword, checkPassword, createSession, cookieFor, loadUser, sessionOf, scope, can } from './auth.js';
 import { mountMigrate } from './migrate.js';
 import { subscribe, emit } from './bus.js';
 import { httpError, logEvent, setTags, getTags, setFields, getFields, setPoints, createContact, createLead, firstStage, openLeadOf, brandKey, firstPipelineOf, setOptOut } from './crm.js';
@@ -16,6 +16,7 @@ import { results, readInvestment } from './results.js';
 import { flowOnHuman, flowOnStage, validateGraph, simulate, portsOf } from './flows.js';
 import { claude, DEFAULT_MODEL, translateOut, translateIn } from './ai.js';
 import { transcribeMessage, groqKey } from './transcribe.js';
+import { perfil } from './perfil.js';
 import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES, markReadWeb } from './waweb.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -29,21 +30,31 @@ app.get('/healthz', (req, res) => res.type('text').send('ok'));
 const fromThisPc = (req) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress) && !req.get('x-forwarded-for') && !req.get('cf-connecting-ip');
 
 // ---------- webhooks da Meta (corpo cru para conferir a assinatura)
-app.get('/webhooks/meta', (req, res) => {
-  const meta = getSetting('meta', {});
-  if (req.query['hub.mode'] === 'subscribe' && meta.verify_token && req.query['hub.verify_token'] === meta.verify_token) return res.send(req.query['hub.challenge']);
-  res.sendStatus(403);
+// Cada empresa usa o endereço dela: /webhooks/meta/<nº da empresa>. Sem número = empresa nº 1 (endereço antigo da AgroVox).
+const webhookAccount = (req) => { const id = Number(req.params.conta || 1); return accountIds().includes(id) ? id : null; };
+app.get(['/webhooks/meta', '/webhooks/meta/:conta'], (req, res) => {
+  const acc = webhookAccount(req);
+  if (!acc) return res.sendStatus(404);
+  inAccount(acc, () => {
+    const meta = getSetting('meta', {});
+    if (req.query['hub.mode'] === 'subscribe' && meta.verify_token && req.query['hub.verify_token'] === meta.verify_token) return res.send(req.query['hub.challenge']);
+    res.sendStatus(403);
+  });
 });
-app.post('/webhooks/meta', express.raw({ type: '*/*', limit: '5mb' }), (req, res) => {
-  const meta = getSetting('meta', {});
-  if (!verifySignature(req.body, req.get('x-hub-signature-256'), meta.app_secret)) {
-    console.warn('webhook com assinatura inválida (confira o App Secret em Configurações > Geral)');
-    return res.sendStatus(403);
-  }
-  res.sendStatus(200);
-  let body;
-  try { body = JSON.parse(req.body.toString('utf8')); } catch { return; }
-  handleWebhookItems(parseWebhook(body));
+app.post(['/webhooks/meta', '/webhooks/meta/:conta'], express.raw({ type: '*/*', limit: '5mb' }), (req, res) => {
+  const acc = webhookAccount(req);
+  if (!acc) return res.sendStatus(404);
+  inAccount(acc, () => {
+    const meta = getSetting('meta', {});
+    if (!verifySignature(req.body, req.get('x-hub-signature-256'), meta.app_secret)) {
+      console.warn(`webhook com assinatura inválida (empresa ${acc}; confira o App Secret em Configurações > Geral)`);
+      return res.sendStatus(403);
+    }
+    res.sendStatus(200);
+    let body;
+    try { body = JSON.parse(req.body.toString('utf8')); } catch { return; }
+    handleWebhookItems(parseWebhook(body));
+  });
 });
 
 // ---------- arquivos estáticos
@@ -53,8 +64,9 @@ app.use(express.static(path.join(ROOT, 'public'), { index: 'index.html' }));
 app.use('/api', express.json({ limit: '2mb' }));
 
 // ---------- primeiro acesso e login
-app.get('/api/setup', (req, res) => res.json({ needed: !one('select 1 from users limit 1') }));
-app.post('/api/setup', (req, res) => {
+// Primeiro acesso: só existe na empresa nº 1 (instalação nova). Empresas clientes já nascem com o administrador.
+app.get('/api/setup', (req, res) => inAccount(1, () => res.json({ needed: !one('select 1 from users limit 1') })));
+app.post('/api/setup', (req, res) => inAccount(1, () => {
   const { company, name, email, password } = req.body || {};
   if (one('select 1 from users limit 1')) throw httpError(409, 'Já configurado');
   // Enquanto não há administrador, só quem está neste PC pode criar (o túnel pode estar aberto).
@@ -65,31 +77,44 @@ app.post('/api/setup', (req, res) => {
   if (company) { setSetting('general', { ...getSetting('general', {}), company }); run('update brands set name = ? where id = 1', String(company).trim()); }
   res.setHeader('Set-Cookie', cookieFor(createSession(id)));
   res.json({ ok: true });
-});
+}));
 
 const fails = new Map(); // ip -> { n, until }
+export function accountOfEmail(email, except = null) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return null;
+  return accountIds().find((id) => id !== except && inAccount(id, () => one('select 1 from users where lower(email) = ?', e))) || null;
+}
 app.post('/api/login', (req, res) => {
   const ip = req.ip;
   const f = fails.get(ip);
   if (f && f.n >= 10 && f.until > now()) throw httpError(429, 'Muitas tentativas. Espere 15 minutos.');
   const { email, password } = req.body || {};
-  const u = one('select * from users where email = ? and is_active = 1', String(email || '').trim());
+  // O e-mail diz de qual empresa é a pessoa (o mesmo e-mail não pode estar em duas empresas).
+  const acc = accountOfEmail(email);
+  const u = acc && inAccount(acc, () => one('select * from users where email = ? and is_active = 1', String(email || '').trim()));
   if (!u || !checkPassword(String(password || ''), u.pass_hash)) {
     fails.set(ip, { n: (f && f.until > now() ? f.n : 0) + 1, until: now() + 15 * 60e3 });
     throw httpError(401, 'Email ou senha incorretos');
   }
   fails.delete(ip);
-  res.setHeader('Set-Cookie', cookieFor(createSession(u.id)));
+  res.setHeader('Set-Cookie', cookieFor(inAccount(acc, () => createSession(u.id))));
   res.json({ ok: true });
 });
 
 // ---------- link "sair da lista" dos e-mails de campanha (público, sem login)
-function unsubscribe(token) {
-  const who = contactFromUnsubToken(token);
-  if (!who) return null;
-  setOptOut(who.id, who.brandId, true);
-  run("update campaign_recipients set status = 'skipped', error = 'pediu para sair' where contact_id = ? and status = 'queued' and campaign_id in (select id from campaigns where brand_id = ?)", who.id, who.brandId);
-  return who;
+// Link "c<empresa>-<código>"; sem o prefixo é da empresa nº 1 (links já enviados pela AgroVox).
+function unsubscribe(link) {
+  const m = String(link || '').match(/^(?:c(\d+)-)?(.+)$/);
+  const acc = Number(m?.[1] || 1);
+  if (!accountIds().includes(acc)) return null;
+  return inAccount(acc, () => {
+    const who = contactFromUnsubToken(m[2]);
+    if (!who) return null;
+    setOptOut(who.id, who.brandId, true);
+    run("update campaign_recipients set status = 'skipped', error = 'pediu para sair' where contact_id = ? and status = 'queued' and campaign_id in (select id from campaigns where brand_id = ?)", who.id, who.brandId);
+    return who;
+  });
 }
 app.get('/sair/:token', (req, res) => {
   const id = unsubscribe(req.params.token);
@@ -105,16 +130,32 @@ app.post('/sair/:token', express.urlencoded({ extended: false }), (req, res) => 
 
 // ---------- daqui para baixo: precisa estar logado
 app.use('/api', (req, res, next) => {
-  req.user = loadUser(req);
-  if (!req.user) return res.status(401).json({ error: 'Faça login' });
-  // Empresa escolhida na setinha do menu (AgroVox, AgroPool...). Vem em todo pedido da tela.
-  const b = Number(req.get('x-brand')) || 1;
-  req.brand = one('select id from brands where id = ?', b) ? b : 1;
-  // Formulários de outros sites não conseguem mandar cabeçalho próprio: barra CSRF.
-  if (req.method !== 'GET' && req.get('x-crm') !== '1') return res.status(403).json({ error: 'Requisição recusada' });
-  next();
+  const acc = sessionOf(req)?.account;
+  if (!acc || !accountIds().includes(acc)) return res.status(401).json({ error: 'Faça login' });
+  // Daqui em diante o pedido inteiro roda dentro da empresa de quem está logado: só enxerga o banco dela.
+  inAccount(acc, () => {
+    req.user = loadUser(req);
+    if (!req.user) return res.status(401).json({ error: 'Faça login' });
+    req.account = acc;
+    // Marca escolhida na setinha do menu (ex.: AgroVox, AgroPool). Vem em todo pedido da tela.
+    const b = Number(req.get('x-brand')) || 1;
+    req.brand = one('select id from brands where id = ?', b) ? b : 1;
+    // Formulários de outros sites não conseguem mandar cabeçalho próprio: barra CSRF.
+    if (req.method !== 'GET' && req.get('x-crm') !== '1') return res.status(403).json({ error: 'Requisição recusada' });
+    next();
+  });
 });
 const admin = (req) => { if (!req.user.is_admin) throw httpError(403, 'Só administradores'); };
+// Marca nova dentro da empresa (ex.: a AgroVox tem também a marca AgroPool): funil, canais e campanhas próprios.
+app.post('/api/brands', (req, res) => {
+  admin(req);
+  const name = String(req.body?.name || '').trim().slice(0, 60);
+  if (!name) throw httpError(400, 'Dê um nome para a marca');
+  const id = Number(run('insert into brands(name, created_at) values(?, ?)', name, now()).lastInsertRowid);
+  createBrandPipeline(id, name);
+  emit('config');
+  res.json({ id });
+});
 // Mudança do PC para a nuvem (envio do banco e dos arquivos; recebimento com RESTORE_TOKEN).
 mountMigrate(app, { requireAdmin: (req, res, next) => { admin(req); next(); } });
 
@@ -142,16 +183,9 @@ function channelsPublic(brandId) {
   });
 }
 
-// ---------- respostas prontas (como no WhatsApp Business), por empresa. "es" é a versão em espanhol (números com tradução).
-const QUICK_DEFAULT = [
-  { title: 'Site', pt: 'Conheça a AgroVox: https://www.agro-vox.com 🌱', es: 'Conozca AgroVox: https://www.agro-vox.com 🌱' },
-  { title: 'Pagamento no cartão', pt: 'O pagamento pode ser feito no cartão de crédito. 💳', es: 'El pago se puede hacer con tarjeta de crédito. 💳' },
-  { title: 'Pagamento em cripto', pt: 'Também aceitamos pagamento em criptomoedas.', es: 'También aceptamos pago con criptomonedas.' },
-  { title: 'Sinais Trimble (diferença)',
-    pt: 'Os sinais da Trimble:\n📡 *RangePoint* (± 15 cm): pulverização, adubação a lanço e preparo de solo. É o mais barato.\n📡 *CenterPoint* (± 4 cm): plantio, colheita e qualquer serviço que precisa de linha reta e repetível. O sinal leva alguns minutos para firmar.\n📡 *CenterPoint Fast* (± 2,5 cm): a mesma aplicação do CenterPoint, só que firma bem mais rápido (perto de 1 minuto) e é um pouco mais preciso. Para quem não pode esperar no começo do dia.',
-    es: 'Las señales de Trimble:\n📡 *RangePoint* (± 15 cm): pulverización, fertilización al voleo y preparación de suelo. Es la más económica.\n📡 *CenterPoint* (± 4 cm): siembra, cosecha y cualquier trabajo que necesite líneas rectas y repetibles. La señal tarda unos minutos en estabilizarse.\n📡 *CenterPoint Fast* (± 2,5 cm): el mismo uso que CenterPoint, pero se estabiliza mucho más rápido (alrededor de 1 minuto) y es un poco más precisa. Ideal para quien no puede esperar al empezar el día.' },
-];
-const quickReplies = (brand) => getSetting(brandKey('quick_replies', brand), null) ?? (Number(brand) === 1 ? QUICK_DEFAULT : []);
+// ---------- respostas prontas (como no WhatsApp Business), por marca. "es" é a versão em espanhol (números com tradução).
+// Sem lista salva, a marca principal começa com as respostas do perfil da empresa (ver perfil.js).
+const quickReplies = (brand) => getSetting(brandKey('quick_replies', brand), null) ?? (Number(brand) === 1 ? perfil().respostasProntas : []);
 app.put('/api/quick-replies', (req, res) => {
   admin(req);
   const list = Array.isArray(req.body) ? req.body : [];
@@ -221,7 +255,7 @@ app.post('/api/users', (req, res) => {
   admin(req);
   const { name, email, password, role_id, is_admin } = req.body || {};
   if (!name || !email || !password || password.length < 8) throw httpError(400, 'Nome, email e senha (mín. 8) são obrigatórios');
-  if (one('select 1 from users where email = ?', email.trim())) throw httpError(409, 'Já existe um usuário com esse email');
+  if (one('select 1 from users where email = ?', email.trim()) || accountOfEmail(email, req.account)) throw httpError(409, 'Já existe um usuário com esse email');
   const id = run('insert into users(name, email, pass_hash, role_id, is_admin, created_at) values(?, ?, ?, ?, ?, ?)',
     name.trim(), email.trim(), hashPassword(password), role_id || null, is_admin ? 1 : 0, now()).lastInsertRowid;
   emit('config');
@@ -240,7 +274,10 @@ app.patch('/api/users/:id', (req, res) => {
   if (u.is_admin && admins <= 1 && (b.is_admin === false || b.is_active === false)) throw httpError(400, 'Precisa existir pelo menos um administrador ativo');
   tx(() => {
     if (b.name) run('update users set name = ? where id = ?', b.name.trim(), id);
-    if (b.email) run('update users set email = ? where id = ?', b.email.trim(), id);
+    if (b.email) {
+      if (one('select 1 from users where lower(email) = lower(?) and id != ?', b.email.trim(), id) || accountOfEmail(b.email, req.account)) throw httpError(409, 'Já existe um usuário com esse email');
+      run('update users set email = ? where id = ?', b.email.trim(), id);
+    }
     if (b.password) {
       if (b.password.length < 8) throw httpError(400, 'Senha com pelo menos 8 caracteres');
       run('update users set pass_hash = ? where id = ?', hashPassword(b.password), id);
@@ -924,7 +961,7 @@ app.post('/api/conversations/:id/messages', express.raw({ type: () => true, limi
     if (req.body?.file_id) {
       const f = one('select * from files where id = ?', Number(req.body.file_id));
       if (!f) throw httpError(404, 'Arquivo não encontrado');
-      file = { id: f.id, buf: fs.readFileSync(path.join(UPLOAD_DIR, f.path)), name: f.name, mime: f.mime };
+      file = { id: f.id, buf: fs.readFileSync(path.join(uploadDir(), f.path)), name: f.name, mime: f.mime };
     }
   }
   else {
@@ -1143,7 +1180,7 @@ app.post('/api/mailbox', (req, res) => {
   admin(req);
   const b = req.body || {};
   const address = String(b.address || '').trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) throw httpError(400, 'Informe o e-mail da caixa (ex.: contato@agro-vox.com)');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) throw httpError(400, `Informe o e-mail da caixa (ex.: ${perfil().exemploEmail})`);
   let ch = one("select * from channels where kind = 'email' and brand_id = ?", req.brand);
   const other = one("select brand_id from channels where kind = 'email' and external_id = ? and id is not ?", address, ch?.id ?? null);
   if (other) throw httpError(409, 'Esta caixa já está ligada a outra empresa');
@@ -1276,7 +1313,7 @@ app.put('/api/admin/investment', (req, res) => {
   admin(req);
   const d = req.body;
   if (!d || typeof d !== 'object' || Array.isArray(d) || typeof d.canais !== 'object') throw httpError(400, 'Formato inválido: precisa do campo "canais"');
-  fs.writeFileSync(path.join(DATA_DIR, 'investimento.json'), JSON.stringify(d, null, 2));
+  fs.writeFileSync(path.join(accountDir(), 'investimento.json'), JSON.stringify(d, null, 2));
   res.json({ ok: true, updated_at: d.updated_at || null });
 });
 
@@ -1474,7 +1511,7 @@ app.get('/api/files/:id', (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Type', inline ? f.mime : 'application/octet-stream');
   res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(f.name)}`);
-  fs.createReadStream(path.join(UPLOAD_DIR, f.path)).on('error', () => res.status(404).end()).pipe(res);
+  fs.createReadStream(path.join(uploadDir(), f.path)).on('error', () => res.status(404).end()).pipe(res);
 });
 
 // ---------- erros
