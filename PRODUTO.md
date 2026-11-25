@@ -65,7 +65,8 @@ então nada muda para a AgroVox.
 - [x] Assinatura mensal no Mercado Pago (`POST /api/billing/checkout` → link do MP; aviso em `/webhooks/mercadopago`,
       conferido na API do MP). Precisa de `MP_ACCESS_TOKEN` no servidor.
 - [x] Termos de uso e privacidade: rascunho em `/termos.html` (falta razão social/CNPJ e revisão de advogado).
-- [ ] Antes de abrir o cadastro: CNPJ que vende, token do Mercado Pago, revisão dos termos, domínio fechae.com,
+- Quem vende: KC Financial Solutions Ltda (CNPJ 62.564.150/0001-85) por enquanto; CNPJ próprio só quando houver vendas (decisão do Kleber, 25/11).
+- [ ] Antes de abrir o cadastro: e-mail de contato nos termos, token do Mercado Pago, revisão dos termos, domínio fechae.com,
       e-mail de boas-vindas, chave de IA da plataforma (empresa nova não tem chave própria da Anthropic).
 - [ ] Painel do dono da plataforma (ver todas as empresas, plano, quem está devendo).
 
