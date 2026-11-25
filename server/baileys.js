@@ -103,6 +103,7 @@ export class Client extends EventEmitter {
     this.info = null;
     this.recent = new Map(); // id -> mensagem enviada (o WhatsApp pode pedir para reenviar se o celular do cliente não conseguiu abrir)
     this.lastIn = new Map(); // conversa -> última mensagem recebida (para marcar como lida quando o CRM responde)
+    this.inKeys = new Map(); // id -> chave da mensagem recebida (para marcar como lida no celular quando lida no CRM)
   }
 
   async initialize() { await load(); await this.connect(); }
@@ -123,12 +124,20 @@ export class Client extends EventEmitter {
     sock.ev.on('connection.update', (u) => this.onConnection(sock, u));
     sock.ev.on('messages.upsert', (u) => this.onUpsert(sock, u));
     sock.ev.on('messages.update', (ups) => {
+      const read = new Set();
       for (const x of ups || []) {
         const st = x.update?.status;
         if (st == null || !x.key?.id) continue;
+        // Mensagem do cliente marcada como lida (por você no celular): a conversa fica lida no CRM também.
+        if (x.key.fromMe === false && st >= 4 && x.key.remoteJid) { read.add(toC(x.key.remoteJid)); continue; }
         const ack = st === 0 ? -1 : st - 1; // ERRO / no servidor / entregue / lida / ouvida -> mesmo número do whatsapp-web.js
         if (ack === -1 || ack >= 1) this.emit('message_ack', { id: { _serialized: x.key.id } }, ack);
       }
+      for (const j of read) this.emit('chat_read', j);
+    });
+    // Conversa lida no celular (o WhatsApp avisa os aparelhos conectados que não há mais mensagens novas).
+    sock.ev.on('chats.update', (ups) => {
+      for (const u of ups || []) if (u?.id && u.unreadCount === 0) this.emit('chat_read', toC(u.id));
     });
   }
 
@@ -206,6 +215,8 @@ export class Client extends EventEmitter {
     if (type !== 'notify' && type !== 'append') return;
     for (const j of [toC(jid), alt && toC(alt)].filter(Boolean)) this.lastIn.set(j, wm.key);
     if (this.lastIn.size > 5000) this.lastIn.delete(this.lastIn.keys().next().value);
+    this.inKeys.set(wm.key.id, wm.key);
+    if (this.inKeys.size > 20000) this.inKeys.delete(this.inKeys.keys().next().value);
     msg._noFlow = msg.timestamp <= (lastOwn[jid] || 0);
     this.emit('message', msg);
   }
@@ -251,6 +262,13 @@ export class Client extends EventEmitter {
       if (this.recent.size > 5000) this.recent.delete(this.recent.keys().next().value);
     }
     return { id: { _serialized: m?.key?.id || null } };
+  }
+
+  // Lida no CRM -> lida no celular (e os dois risquinhos azuis para o cliente, como no WhatsApp Web).
+  async markRead(chatId, ids) {
+    const keys = ids.map((id) => this.inKeys.get(id) || (chatId && { remoteJid: toS(chatId), id, fromMe: false })).filter(Boolean);
+    if (keys.length) await this.sock.readMessages(keys);
+    for (const k of keys) for (const [j, v] of this.lastIn) if (v.id === k.id) this.lastIn.delete(j);
   }
 
   async typing(chatId) {

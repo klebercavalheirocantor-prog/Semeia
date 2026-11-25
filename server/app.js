@@ -16,7 +16,7 @@ import { results, readInvestment } from './results.js';
 import { flowOnHuman, flowOnStage, validateGraph, simulate, portsOf } from './flows.js';
 import { claude, DEFAULT_MODEL, translateOut, translateIn } from './ai.js';
 import { transcribeMessage, groqKey } from './transcribe.js';
-import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES } from './waweb.js';
+import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES, markReadWeb } from './waweb.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 export const app = express();
@@ -966,10 +966,41 @@ app.post('/api/conversations/:id/messages', express.raw({ type: () => true, limi
   res.json(one('select * from messages where id = ?', mid));
 });
 
+// Lida no CRM -> lida no celular também (WhatsApp conectado pelo QR). Em segundo plano: a tela não espera.
+function readOnPhone(convs) {
+  const list = convs.filter((c) => c.unread > 0);
+  if (!list.length) return;
+  (async () => {
+    for (const c of list) {
+      const ch = one('select * from channels where id = ?', c.channel_id);
+      if (!ch || !isWeb(ch)) continue;
+      let sent = false;
+      try { sent = await markReadWeb(ch, c, c.unread); } catch (e) { console.error('whatsapp web: marcar lida no celular', e.message); }
+      if (sent && list.length > 1) await new Promise((r) => setTimeout(r, 400)); // várias de uma vez: devagar
+    }
+  })();
+}
+
+// "Marcar todas como lidas": as conversas abertas com mensagem nova que você pode ver (mesmo filtro de número da lista).
+app.post('/api/conversations/read-all', (req, res) => {
+  const where = [convScope(req.user), 'ch.brand_id = ?', "c.status = 'open'", 'c.unread > 0'];
+  const p = [req.brand];
+  if (req.body?.via) {
+    const ids = all('select id, kind, config from channels where brand_id = ?', req.brand).filter((c) => channelGroup(c) === req.body.via).map((c) => c.id);
+    where.push(ids.length ? `c.channel_id in (${ids.map(() => '?').join(',')})` : '0');
+    p.push(...ids);
+  }
+  const list = all(`select c.* from conversations c join channels ch on ch.id = c.channel_id left join leads l on l.id = c.lead_id and l.deleted_at is null where ${where.join(' and ')}`, ...p);
+  for (const c of list) run('update conversations set unread = 0 where id = ?', c.id);
+  readOnPhone(list);
+  if (list.length) emit('message', {});
+  res.json({ ok: true, count: list.length });
+});
+
 app.patch('/api/conversations/:id', (req, res) => {
   const c = loadConv(req, Number(req.params.id));
   const b = req.body || {};
-  if (b.read) run('update conversations set unread = 0 where id = ?', c.id);
+  if (b.read) { run('update conversations set unread = 0 where id = ?', c.id); readOnPhone([c]); }
   if (b.status === 'closed') run("update conversations set status = 'closed', unread = 0 where id = ?", c.id);
   if (b.status === 'open' && c.status === 'closed') {
     if (one("select 1 from conversations where channel_id = ? and external_id = ? and status = 'open'", c.channel_id, c.external_id)) throw httpError(409, 'Já existe uma conversa aberta com este cliente');

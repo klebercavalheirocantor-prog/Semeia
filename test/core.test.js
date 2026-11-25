@@ -1479,3 +1479,43 @@ test('áudio do cliente: transcreve sozinho pela Groq e traduz para português; 
     setSetting('ai', { ...getSetting('ai', {}), groq_key: '' }); // pela tela, campo vazio mantém a chave
   }
 });
+
+test('lida no celular fica lida no CRM; lida no CRM (ou "marcar todas") fica lida no celular', async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const ch = (await call('admin', 'POST', '/api/waweb', { novo: true, name: 'Leitura (teste)' })).body;
+  await wait(20);
+  const cli = waFake.client;
+  cli.emit('ready');
+  const marked = [];
+  cli.markRead = async (chat, ids) => { marked.push([chat, ...ids]); };
+  const msg = (id, body) => ({ from: '5567988770011@c.us', to: '556793300144@c.us', body, type: 'chat', id: { _serialized: id }, timestamp: Math.floor(Date.now() / 1000),
+    fromMe: false, hasMedia: false, getContact: async () => ({ number: '5567988770011', pushname: 'Lia' }) });
+  cli.emit('message', msg('lr-1', 'Oi, bom dia'));
+  await wait(30); await flush();
+  const conv = () => one('select * from conversations where channel_id = ? order by id desc limit 1', ch.id);
+  assert.equal(conv().unread, 1);
+  // você leu no celular
+  cli.emit('chat_read', '5567988770011@c.us');
+  await wait(20);
+  assert.equal(conv().unread, 0);
+  // chegaram mais duas; você abriu no CRM
+  cli.emit('message', msg('lr-2', 'Tem sinal pra 6000?'));
+  cli.emit('message', msg('lr-3', 'E pra 7000?'));
+  await wait(30); await flush();
+  assert.equal(conv().unread, 2);
+  await call('admin', 'PATCH', `/api/conversations/${conv().id}`, { read: true });
+  await wait(30);
+  assert.equal(conv().unread, 0);
+  assert.equal(marked.length, 1);
+  assert.deepEqual(marked[0].slice(1), ['lr-2', 'lr-3']);
+  // "marcar todas como lidas"
+  cli.emit('message', msg('lr-4', 'Alô?'));
+  await wait(30); await flush();
+  assert.equal(conv().unread, 1);
+  const r = await call('admin', 'POST', '/api/conversations/read-all', {});
+  assert.ok(r.body.count >= 1);
+  assert.equal(conv().unread, 0);
+  for (let i = 0; i < 100 && marked.length < 2; i++) await wait(30); // as outras conversas da lista vão antes
+  assert.deepEqual(marked.at(-1).slice(1), ['lr-4']);
+  run("update channels set status = 'disabled' where id = ?", ch.id);
+});

@@ -83,6 +83,11 @@ export function InboxPage({ id, query }) {
   const dq = useDebounced(q);
   const { data, error, reload } = useData(() => api(`/conversations?filter=${filter}${via ? `&via=${via}` : ''}${dq ? `&q=${encodeURIComponent(dq)}` : ''}`), [filter, via, dq], ['message', 'lead']);
   const hasChannel = B().channels.length > 0;
+  // Zera as não lidas (no Semeia e no celular), respeitando o número escolhido no filtro.
+  const readAll = async () => {
+    if (!confirm(`Marcar como lidas todas as conversas com mensagem nova${via ? ' deste número' : ''}? No celular elas também ficam lidas.`)) return;
+    try { const r = await post('/conversations/read-all', { via }); toast(`${r.count} conversa${r.count === 1 ? '' : 's'} marcada${r.count === 1 ? '' : 's'} como lida${r.count === 1 ? '' : 's'}`); reload(); } catch (e) { fail(e); }
+  };
   return html`<div class="main"><div class="inbox ${id ? 'has-chat' : ''}">
     <section class="inbox-list" aria-label="Conversas">
       <div style="padding:8px"><input type="search" aria-label="Buscar conversas" placeholder="Buscar cliente ou mensagem" value=${q} onInput=${(e) => setQ(e.target.value)} style="width:100%" /></div>
@@ -90,6 +95,7 @@ export function InboxPage({ id, query }) {
         <button class="chip" aria-pressed=${!via} onClick=${() => pickVia('')}>Todas</button>
         ${vias.map(([k, label]) => html`<button class="chip" aria-pressed=${via === k} onClick=${() => pickVia(via === k ? '' : k)}>${label}</button>`)}</div>`}
       <div class="filters" role="group" aria-label="Filtro">${FILTERS.map(([k, label]) => html`<button class="chip" aria-pressed=${filter === k} onClick=${() => setFilter(k)}>${label}</button>`)}</div>
+      ${(data || []).some((c) => c.unread > 0) && html`<div style="padding:0 8px 6px"><button class="btn sm" onClick=${readAll}>✓ Marcar todas como lidas</button></div>`}
       <div class="items">
         ${error && html`<${ErrorBox} error=${error} retry=${reload} />`}
         ${!data && !error && html`<div style="padding:8px"><${Skeleton} rows=${6} h=${48} /></div>`}

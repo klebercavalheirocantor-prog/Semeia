@@ -125,6 +125,16 @@ test('motor sem navegador: QR, conecta, recebe, responde, status, cai e volta so
   await c.sendMessage('5567988885555@c.us', 'Oi'); // mesmo cliente do id interno, pelo telefone: já estava lida
   assert.deepEqual(s.read, ['L1', 'IMG']);
 
+  // lida no celular -> avisa o CRM; lida no CRM -> marca no celular com a chave certa
+  const reads = [];
+  c.on('chat_read', (j) => reads.push(j));
+  s.ev.emit('messages.update', [{ key: { remoteJid: '5567988882222@s.whatsapp.net', id: 'IN2', fromMe: false }, update: { status: 4 } }]);
+  s.ev.emit('chats.update', [{ id: '227616573395131@lid', unreadCount: 0 }, { id: '5567911110000@s.whatsapp.net', unreadCount: 3 }]);
+  assert.deepEqual(reads, ['5567988882222@c.us', '227616573395131@lid']);
+  s.read.length = 0;
+  await c.markRead('5567988882222@c.us', ['IN2', 'DESCONHECIDA']);
+  assert.deepEqual(s.read, ['IN2', 'DESCONHECIDA']);
+
   // internet caiu: reconecta sozinho com o MESMO login (sem QR)
   s.ev.emit('connection.update', { connection: 'close', lastDisconnect: { error: { output: { statusCode: 428 } } } });
   await wait(2100);

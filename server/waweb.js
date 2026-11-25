@@ -153,6 +153,9 @@ export async function startWeb(channel) {
   client.on('message', (msg) => onIncoming(channel.id, msg, { noFlow: !!msg._noFlow }).catch((e) => console.error('whatsapp web: mensagem', e)));
   // Mensagens que você manda pelo celular: aparecem no CRM e fazem o robô sair da conversa.
   client.on('message_create', (msg) => { if (msg.fromMe) setTimeout(() => onOwn(channel.id, msg).catch((e) => console.error('whatsapp web: eco', e)), echoDelay); });
+  // Leu no celular -> lida no CRM.
+  client.on('chat_read', (chat) => onChatRead(channel.id, chat).catch((e) => console.error('whatsapp web: lida no celular', e.message)));
+  client.on('unread_count', (chat) => { if (chat?.unreadCount === 0) onChatRead(channel.id, chat.id?._serialized).catch(() => {}); }); // whatsapp-web.js
   client.on('message_ack', (msg, ack) => {
     const status = ack === -1 ? 'failed' : { 1: 'sent', 2: 'delivered', 3: 'read', 4: 'read' }[ack];
     if (status) handleStatus({ external_id: msg.id?._serialized, status, error: null });
@@ -258,6 +261,32 @@ const IGNORE = /@(g\.us|broadcast|newsletter)$/;
 const SYSTEM = /^(e2e_notification|notification|notification_template|gp2|protocol|ciphertext|revoked|call_log|broadcast_notification|pinned_message)$/;
 
 // Id interno (xxx@lid) -> telefone (5567...), quando o WhatsApp informa. Sem telefone, a conversa usa o próprio id.
+// Você leu a conversa no celular: zera o "não lidas" dela no CRM.
+async function onChatRead(channelId, chat) {
+  if (!chat || IGNORE.test(chat)) return;
+  const ids = new Set([chat, chat.split('@')[0]]);
+  if (chat.endsWith('@lid')) { const p = await phoneOfLid(channelId, chat); if (p) ids.add(p); }
+  const list = [...ids];
+  for (const c of all(`select id, lead_id from conversations where channel_id = ? and unread > 0 and external_id in (${list.map(() => '?').join(',')})`, channelId, ...list)) {
+    run('update conversations set unread = 0 where id = ?', c.id);
+    emit('message', { conversation_id: c.id, lead_id: c.lead_id });
+  }
+}
+
+// Você leu a conversa no CRM: marca como lida no celular (as últimas `count` mensagens do cliente).
+export async function markReadWeb(channel, conv, count = 1) {
+  const s = sessions.get(channel.id);
+  if (s?.state !== 'ready') return false;
+  const ids = all("select external_id from messages where conversation_id = ? and direction = 'in' and external_id is not null order by id desc limit ?",
+    conv.id, Math.min(50, Math.max(1, count))).map((m) => m.external_id).reverse();
+  if (!ids.length) return false;
+  const chatId = await resolveNumber(channel, conv.external_id).catch(() => null);
+  if (s.client.markRead) await s.client.markRead(chatId, ids);
+  else if (chatId) await (await s.client.getChatById(chatId)).sendSeen();
+  else return false;
+  return true;
+}
+
 async function phoneOfLid(channelId, chatId) {
   try {
     const [r] = await sessions.get(channelId).client.getContactLidAndPhone([chatId]);
