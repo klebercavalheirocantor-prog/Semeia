@@ -1,0 +1,27 @@
+name: fetch-media
+on:
+  push:
+    branches: [midia-redes]
+    paths: ['voz/fetch.txt']
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: midia-redes }
+      - name: download
+        run: |
+          while read -r name url; do
+            [ -z "$name" ] && continue
+            curl -sSfL -o "voz/$name" "$url"
+          done < voz/fetch.txt
+          ls -la voz
+      - name: commit
+        run: |
+          git config user.name "media-bot"
+          git config user.email "media-bot@users.noreply.github.com"
+          git add voz
+          git commit -m "media: fetched files" || echo nothing
+          git push
