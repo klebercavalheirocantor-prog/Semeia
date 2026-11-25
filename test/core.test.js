@@ -1372,3 +1372,17 @@ test('respostas prontas: padrão da AgroVox, admin edita por empresa, vendedor n
   assert.deepEqual((await call('admin', 'GET', '/api/me', undefined, { 'x-brand': '2' })).body.quick_replies, []);
   assert.ok([401, 403].includes((await call('beto', 'PUT', '/api/quick-replies', [])).status));
 });
+
+test('filtro rápido das conversas por número: Brasil, espanhol, e-mail', async () => {
+  const mk = (name, ext, cfg, kind = 'whatsapp') => Number(run('insert into channels(kind, name, external_id, config, created_at) values(?, ?, ?, ?, ?)', kind, name, ext, JSON.stringify(cfg), Date.now()).lastInsertRowid);
+  const es = mk('Paraguai', 'web-via-es', { mode: 'web', translate_to: 'es' });
+  const contact = one('select id from contacts limit 1').id;
+  run("insert into conversations(channel_id, contact_id, external_id, last_message_at, created_at) values(?, ?, 'via-es-1', ?, ?)", es, contact, Date.now(), Date.now());
+  const me = (await call('admin', 'GET', '/api/me')).body;
+  assert.equal(me.channels.find((c) => c.id === es).group, 'es');
+  const only = (await call('admin', 'GET', '/api/conversations?via=es')).body;
+  assert.ok(only.length >= 1 && only.every((c) => c.channel_name === 'Paraguai'));
+  const br = (await call('admin', 'GET', '/api/conversations?via=br')).body;
+  assert.ok(br.length >= 1 && br.every((c) => c.channel_name !== 'Paraguai' && c.channel !== 'email'));
+  assert.deepEqual((await call('admin', 'GET', '/api/conversations?via=en')).body, []); // ainda sem número dos EUA
+});

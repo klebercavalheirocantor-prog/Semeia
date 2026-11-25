@@ -125,10 +125,16 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/stream', (req, res) => subscribe(req, res));
 
+// Grupo do canal para o filtro rápido das conversas: e-mail, espanhol (Paraguai/Argentina), EUA (inglês) ou Brasil.
+function channelGroup(c) {
+  if (c.kind === 'email') return 'email';
+  const to = JSON.parse(c.config || '{}').translate_to;
+  return to === 'es' ? 'es' : to === 'en' ? 'en' : 'br';
+}
 function channelsPublic(brandId) {
   return all('select id, kind, name, external_id, status, config from channels where brand_id = ? order by id', brandId).map((c) => {
     const cfg = JSON.parse(c.config);
-    return { id: c.id, kind: c.kind, name: c.name, external_id: c.external_id, status: c.status, pipeline_id: cfg.pipeline_id || null, waba_id: cfg.waba_id || '', has_token: !!cfg.token,
+    return { id: c.id, kind: c.kind, name: c.name, group: channelGroup(c), external_id: c.external_id, status: c.status, pipeline_id: cfg.pipeline_id || null, waba_id: cfg.waba_id || '', has_token: !!cfg.token,
       mode: cfg.mode === 'web' ? 'web' : c.kind === 'email' ? 'imap' : 'api', me: cfg.me || null,
       ...(cfg.mode === 'web' ? { engine: engineOf(c), translate_to: cfg.translate_to || '' } : {}),
       ...(c.kind === 'email' ? { imap_host: cfg.imap_host || 'imap.gmail.com', has_pass: !!cfg.imap_pass, checked_at: cfg.checked_at || null, mail_error: cfg.mail_error || null } : {}) };
@@ -176,7 +182,7 @@ app.get('/api/me', (req, res) => {
     task_types: all('select * from task_types order by id'),
     quick_replies: quickReplies(req.brand),
     loss_reasons: all('select * from loss_reasons order by sort, id'),
-    channels: u.is_admin ? channelsPublic(req.brand) : channelsPublic(req.brand).map(({ id, kind, name, status }) => ({ id, kind, name, status })),
+    channels: u.is_admin ? channelsPublic(req.brand) : channelsPublic(req.brand).map(({ id, kind, name, status, group }) => ({ id, kind, name, status, group })),
     unread: one(`select coalesce(sum(c.unread), 0) n from conversations c join channels ch on ch.id = c.channel_id and ch.brand_id = ? left join leads l on l.id = c.lead_id
       where c.status = 'open' and (${convScope(u)})`, req.brand).n,
   });
@@ -829,6 +835,11 @@ app.get('/api/conversations', (req, res) => {
   if (f === 'unread') where.push('c.unread > 0');
   if (f === 'mine') { where.push('(l.responsible_id = ? or c.assigned_id = ?)'); p.push(req.user.id, req.user.id); }
   if (f === 'waiting') where.push("(select direction from messages m where m.conversation_id = c.id order by m.created_at desc, m.id desc limit 1) = 'in'");
+  if (req.query.via) { // filtro rápido por número: br, es, en ou email
+    const ids = all('select id, kind, config from channels where brand_id = ?', req.brand).filter((c) => channelGroup(c) === req.query.via).map((c) => c.id);
+    where.push(ids.length ? `c.channel_id in (${ids.map(() => '?').join(',')})` : '0');
+    p.push(...ids);
+  }
   if (req.query.q) {
     where.push('(ct.name like ? or l.name like ? or exists (select 1 from messages m where m.conversation_id = c.id and m.body like ?))');
     p.push(like(req.query.q), like(req.query.q), like(req.query.q));

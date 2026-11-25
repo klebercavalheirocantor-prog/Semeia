@@ -2,6 +2,8 @@ import { html, useState, useEffect, api, post, patch, del, fail, toast, Confirm,
 import { Bubble, Composer } from './feed.js';
 import { LossModal } from './leads.js';
 
+// Filtro rápido por número: só aparecem os grupos que têm canal (EUA aparece quando houver número com tradução para inglês).
+const VIA = [['br', '🇧🇷 Brasil'], ['es', '🇵🇾 Espanhol'], ['en', '🇺🇸 EUA'], ['email', '✉ E-mail']];
 const FILTERS = [['open', 'Abertas'], ['waiting', 'Aguardando resposta'], ['unread', 'Não lidas'], ['mine', 'Minhas'], ['closed', 'Fechadas']];
 
 function LinkLeadModal({ convId, onClose }) {
@@ -74,13 +76,19 @@ function Conversation({ id }) {
 
 export function InboxPage({ id, query }) {
   const [filter, setFilter] = useState(query.f || 'open');
+  const [via, setVia] = useState(() => { try { return sessionStorage.getItem('semeia-via') || ''; } catch { return ''; } });
+  const pickVia = (v) => { setVia(v); try { sessionStorage.setItem('semeia-via', v); } catch {} };
+  const vias = VIA.filter(([k]) => B().channels.some((c) => c.group === k && c.status !== 'disabled'));
   const [q, setQ] = useState('');
   const dq = useDebounced(q);
-  const { data, error, reload } = useData(() => api(`/conversations?filter=${filter}${dq ? `&q=${encodeURIComponent(dq)}` : ''}`), [filter, dq], ['message', 'lead']);
+  const { data, error, reload } = useData(() => api(`/conversations?filter=${filter}${via ? `&via=${via}` : ''}${dq ? `&q=${encodeURIComponent(dq)}` : ''}`), [filter, via, dq], ['message', 'lead']);
   const hasChannel = B().channels.length > 0;
   return html`<div class="main"><div class="inbox ${id ? 'has-chat' : ''}">
     <section class="inbox-list" aria-label="Conversas">
       <div style="padding:8px"><input type="search" aria-label="Buscar conversas" placeholder="Buscar cliente ou mensagem" value=${q} onInput=${(e) => setQ(e.target.value)} style="width:100%" /></div>
+      ${vias.length > 1 && html`<div class="filters" role="group" aria-label="Número">
+        <button class="chip" aria-pressed=${!via} onClick=${() => pickVia('')}>Todas</button>
+        ${vias.map(([k, label]) => html`<button class="chip" aria-pressed=${via === k} onClick=${() => pickVia(via === k ? '' : k)}>${label}</button>`)}</div>`}
       <div class="filters" role="group" aria-label="Filtro">${FILTERS.map(([k, label]) => html`<button class="chip" aria-pressed=${filter === k} onClick=${() => setFilter(k)}>${label}</button>`)}</div>
       <div class="items">
         ${error && html`<${ErrorBox} error=${error} retry=${reload} />`}
