@@ -68,7 +68,7 @@ então nada muda para a AgroVox.
 - Quem vende: KC Financial Solutions Ltda (CNPJ 62.564.150/0001-85) por enquanto; CNPJ próprio só quando houver vendas (decisão do Kleber, 25/11).
 - Contato nos termos: contato@agro-vox.com (provisório). IA: cada empresa conecta a própria chave da Anthropic/Groq (decisão do Kleber, 25/11).
 - [ ] Antes de abrir o cadastro: token do Mercado Pago, revisão dos termos, domínio fechae.com,
-     , e-mail de boas-vindas.
+      e-mail de boas-vindas.
 - [ ] Painel do dono da plataforma (ver todas as empresas, plano, quem está devendo).
 
 ## Fase 3
