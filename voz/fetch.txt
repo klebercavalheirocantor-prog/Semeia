@@ -8,3 +8,4 @@ c2_C.mp3 https://music.wixstatic.com/mp3/4770ba_0e0f4200af7a47889b72c9abd416f177
 c2_D.mp3 https://music.wixstatic.com/mp3/4770ba_5cbe489137764d24b8481de12599c30f.mp3
 c2_E.mp3 https://music.wixstatic.com/mp3/4770ba_0df4bb600da94c22868b74d1807834b3.mp3
 c3_g5intro.mp3 https://music.wixstatic.com/mp3/4770ba_a4b5ecf7b29a4f64baedf7daa66f75f5.mp3
+linha_torta_narr.mp3 https://music.wixstatic.com/mp3/4770ba_e03173acc2f840378b76f1a56bc6fcf6.mp3
