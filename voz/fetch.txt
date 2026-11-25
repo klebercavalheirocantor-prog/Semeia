@@ -1,3 +1,9 @@
 kleber_g5intro.mp3 https://music.wixstatic.com/mp3/4770ba_e0180cadf65a4345aca9e06d8d8fef9a.mp3
 kleber_g4intro.mp3 https://music.wixstatic.com/mp3/4770ba_e46f541e19794adeabd17a26c41b207e.mp3
 kleber_shared.mp3 https://music.wixstatic.com/mp3/4770ba_df8a00ded2b8404a960d3ae982a60858.mp3
+c2_g5intro.mp3 https://music.wixstatic.com/mp3/4770ba_aa261a79f7234d32b71a9d4d57b278cb.mp3
+c2_g4intro.mp3 https://music.wixstatic.com/mp3/4770ba_d4d5a6ba2a8c4aafafe55729a2ef8a34.mp3
+c2_B.mp3 https://music.wixstatic.com/mp3/4770ba_f26dacdbd6fa445593373d21b7a40772.mp3
+c2_C.mp3 https://music.wixstatic.com/mp3/4770ba_0e0f4200af7a47889b72c9abd416f177.mp3
+c2_D.mp3 https://music.wixstatic.com/mp3/4770ba_5cbe489137764d24b8481de12599c30f.mp3
+c2_E.mp3 https://music.wixstatic.com/mp3/4770ba_0df4bb600da94c22868b74d1807834b3.mp3
