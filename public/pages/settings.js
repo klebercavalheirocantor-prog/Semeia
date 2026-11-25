@@ -16,7 +16,7 @@ export function Plano() {
   return html`<section class="card pad form"><h2>Plano</h2>${status}
     <div class="plans">${(bi.plans || []).map((p) => html`<div class=${`plan-card${p.key === bi.plan ? ' current' : ''}`}>
       <h3>${p.name}</h3><p class="plan-price">${brl(p.cents)}<span>/mês</span></p>
-      <ul><li>${p.users} usuários</li><li>${p.whatsapp} ${p.whatsapp === 1 ? 'número' : 'números'} de WhatsApp</li><li>Atendente com IA, campanhas e fluxos</li></ul>
+      <ul><li>${p.users} usuários</li><li>${p.whatsapp} ${p.whatsapp === 1 ? 'número' : 'números'} de WhatsApp</li><li>Atendente com IA (com a sua chave), campanhas e fluxos</li></ul>
       <button class=${`btn${p.key === bi.plan ? ' primary' : ''}`} disabled=${!!busy} onClick=${() => pay(p.key)}>
         ${busy === p.key ? 'Abrindo o pagamento…' : bi.status === 'ativo' && p.key === bi.plan ? 'Plano atual' : 'Assinar'}</button></div>`)}</div>
     <p class="xs muted">O pagamento abre no Mercado Pago. Você pode cancelar quando quiser.</p></section>`;
