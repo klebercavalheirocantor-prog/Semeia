@@ -238,3 +238,25 @@ test('assistente: faz no CRM com o login de quem pediu (tarefa criada na empresa
     assert.equal(rb.status, 400);
   } finally { globalThis.fetch = real; }
 });
+
+test('conector do Claude (MCP): link secreto da pessoa, mesmas ações seguras, desligável', async () => {
+  const { url } = (await call('a', 'POST', '/api/mcp-link')).body;
+  const path = new URL(url).pathname;
+  const rpc = (body, p = path) => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' }, body: JSON.stringify(body) });
+  const init = await (await rpc({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'teste', version: '1' } } })).json();
+  assert.equal(init.result.serverInfo.name, 'Fechaê');
+  assert.equal((await rpc({ jsonrpc: '2.0', method: 'notifications/initialized' })).status, 202);
+  const list = await (await rpc({ jsonrpc: '2.0', id: 2, method: 'tools/list' })).json();
+  const names = list.result.tools.map((t) => t.name);
+  assert.ok(names.includes('buscar_leads') && names.includes('criar_tarefa'));
+  assert.ok(!names.some((n) => /enviar|campanha|apagar/.test(n)));
+  const found = await (await rpc({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'buscar_leads', arguments: { busca: 'Segredo' } } })).json();
+  assert.match(found.result.content[0].text, /Segredo da A/);
+  // link trocado de empresa ou inventado não entra
+  const [acc, tok] = path.split('/').pop().split('.');
+  assert.equal((await rpc({ jsonrpc: '2.0', id: 4, method: 'tools/list' }, `/mcp/${B}.${tok}`)).status, 401);
+  assert.equal((await rpc({ jsonrpc: '2.0', id: 4, method: 'tools/list' }, `/mcp/${acc}.${'0'.repeat(64)}`)).status, 401);
+  // desligar: o link para de funcionar
+  await call('a', 'DELETE', '/api/mcp-link');
+  assert.equal((await rpc({ jsonrpc: '2.0', id: 5, method: 'tools/list' })).status, 401);
+});

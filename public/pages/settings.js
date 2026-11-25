@@ -32,7 +32,28 @@ function Account() {
     <p class="small muted">${me.email}</p>
     <label class="field">Senha atual<input type="password" autocomplete="current-password" value=${f.current_password} onInput=${(e) => setF({ ...f, current_password: e.target.value })} /></label>
     <label class="field">Nova senha (mín. 8)<input type="password" autocomplete="new-password" value=${f.password} onInput=${(e) => setF({ ...f, password: e.target.value })} /></label>
-    <button class="btn primary">Salvar</button></form>`;
+    <button class="btn primary">Salvar</button></form>
+    <${ClaudeLink} />`;
+}
+
+// Conectar o Fechaê ao app do Claude: link secreto da pessoa, para colar em Conectores no Claude.
+function ClaudeLink() {
+  const [info, setInfo] = useState(null);
+  const [url, setUrl] = useState('');
+  useEffect(() => { api('/mcp-link').then(setInfo).catch(() => setInfo({})); }, []);
+  const gerar = () => post('/mcp-link').then((r) => { setUrl(r.url); setInfo({ created_at: Date.now() }); }).catch(fail);
+  const desligar = () => del('/mcp-link').then(() => { setUrl(''); setInfo({}); toast('Link desligado'); }).catch(fail);
+  const copiar = () => navigator.clipboard?.writeText(url).then(() => toast('Link copiado')).catch(() => {});
+  return html`<section class="card pad form" style="max-width:560px;margin-top:var(--s-4)"><h2>Conectar ao Claude</h2>
+    <p class="small">Use o Fechaê de dentro do app do Claude (celular ou computador): peça "quais leads estão sem tarefa?" ou "cria uma tarefa para ligar para a Maria amanhã" e ele faz aqui, com o seu login.</p>
+    <ol class="small"><li>Clique em "Gerar link" e copie.</li><li>No Claude: Configurações › Conectores › Adicionar conector personalizado.</li><li>Nome: Fechaê. Cole o link e salve.</li></ol>
+    ${url ? html`<label class="field">Seu link (aparece só agora)<input readonly value=${url} onFocus=${(e) => e.target.select()} /></label>
+        <div class="row"><button type="button" class="btn primary" onClick=${copiar}>Copiar link</button></div>`
+      : info?.created_at ? html`<p class="small">Conectado desde ${new Date(info.created_at).toLocaleDateString('pt-BR')}. Gerar um link novo desliga o anterior.</p>` : null}
+    <p class="xs muted">Quem tiver este link usa o CRM como você. Não compartilhe. O Claude não envia mensagens, não liga campanhas e não apaga nada por aqui.</p>
+    <div class="row"><button type="button" class="btn" onClick=${gerar}>${info?.created_at ? 'Gerar link novo' : 'Gerar link'}</button>
+      ${info?.created_at && html`<button type="button" class="btn danger" onClick=${desligar}>Desligar</button>`}</div>
+  </section>`;
 }
 
 function General() {

@@ -18,6 +18,7 @@ import { claude, DEFAULT_MODEL, translateOut, translateIn } from './ai.js';
 import { transcribeMessage, groqKey } from './transcribe.js';
 import { perfil } from './perfil.js';
 import { talk } from './assistente.js';
+import { mountMcp, newLink, revokeLink, linkInfo } from './mcp.js';
 import { PLANS, TRIAL_DAYS, signupOpen, canUse, limits, billingInfo, startTrial, checkout, syncSubscription } from './billing.js';
 import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES, markReadWeb } from './waweb.js';
 
@@ -143,6 +144,9 @@ app.post('/webhooks/mercadopago', express.json({ limit: '1mb' }), async (req, re
   catch (e) { console.error('assinatura: aviso do Mercado Pago', e.message); }
 });
 
+// Conector do Fechaê para o app do Claude (link secreto por pessoa; ver mcp.js).
+mountMcp(app, express);
+
 // ---------- link "sair da lista" dos e-mails de campanha (público, sem login)
 // Link "c<empresa>-<código>"; sem o prefixo é da empresa nº 1 (links já enviados pela AgroVox).
 function unsubscribe(link) {
@@ -251,6 +255,11 @@ app.post('/api/assistente', async (req, res) => {
   res.json(await talk({ messages: msgs, user: req.user, brand: req.brand, brandId: req.brand, company: one('select name from brands where id = ?', req.brand)?.name || '',
     base: `http://127.0.0.1:${req.socket.localPort}`, cookie: req.get('cookie') || '' }));
 });
+
+// Link do conector do Claude (só da própria pessoa).
+app.get('/api/mcp-link', (req, res) => res.json(linkInfo(req.user.id) || {}));
+app.post('/api/mcp-link', (req, res) => res.json({ url: `${req.protocol}://${req.get('host')}/mcp/${newLink(req.user.id, req.account)}` }));
+app.delete('/api/mcp-link', (req, res) => { revokeLink(req.user.id); res.json({ ok: true }); });
 
 // ---------- plano e pagamento (administrador da empresa)
 app.post('/api/billing/checkout', async (req, res) => {

@@ -45,7 +45,7 @@ export const TOOLS = [
 ];
 
 // Cada ação chama a rota do CRM como se fosse a própria pessoa (cookie dela).
-function makeApi(base, cookie, brand) {
+export function makeApi(base, cookie, brand) {
   return async (path, { method = 'GET', body } = {}) => {
     const r = await fetch(base + '/api' + path, { method, headers: { cookie, 'x-crm': '1', 'x-brand': String(brand), ...(body ? { 'content-type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined });
@@ -55,7 +55,7 @@ function makeApi(base, cookie, brand) {
   };
 }
 
-async function runTool(name, input, api, ctx) {
+export async function runTool(name, input, api, ctx) {
   const stages = () => (ctx.stages ??= api('/me').then((me) => me.pipelines.flatMap((p) => p.stages.map((s) => ({ ...s, pipeline: p.name })))));
   const stageName = async (id) => (await stages()).find((s) => s.id === id)?.name || null;
   switch (name) {
