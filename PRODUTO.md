@@ -71,5 +71,12 @@ então nada muda para a AgroVox.
       e-mail de boas-vindas.
 - [ ] Painel do dono da plataforma (ver todas as empresas, plano, quem está devendo).
 
+## Assistente (Claude dentro do CRM) — feito em 25/11
+- Botão "Assistente" no menu: a pessoa conversa e ele busca/lê leads e conversas, resume, cria tarefa, move etapa,
+  anota e mostra os números do painel (`server/assistente.js`).
+- Segurança: só as ações da lista `TOOLS`; cada uma chama as rotas normais com o login de quem pediu (mesma empresa
+  e permissões). Sem enviar mensagem, ligar campanha, apagar ou mexer em ajustes. Usa a chave de IA da empresa.
+- [ ] Próximo: ações com confirmação ("posso enviar?"), e depois o conector do Fechaê para o app do Claude (MCP).
+
 ## Fase 3
 WhatsApp oficial (Meta) · arquivos fora do servidor · WhatsApp em serviço separado · parcerias com agências.

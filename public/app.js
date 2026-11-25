@@ -8,6 +8,7 @@ import { SettingsPage, Plano } from './pages/settings.js';
 import { DashboardPage } from './pages/dashboard.js';
 import { CampaignsPage, CampaignPage } from './pages/campaigns.js';
 import { FlowsPage, FlowPage } from './pages/flows.js';
+import { Assistente, ASSIST_ICON } from './pages/assistente.js';
 
 const icon = (d) => html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const ICONS = {
@@ -104,6 +105,7 @@ function Nav({ current }) {
     ${b.user.is_admin && item('flows', '#/flows', 'Fluxos')}
     ${item('tasks', '#/tasks', 'Tarefas')}
     ${item('settings', '#/settings', 'Ajustes')}
+    <button class="nav-assist" onClick=${() => dispatchEvent(new Event('assistente'))} title="Assistente: peça e ele faz no CRM">${ASSIST_ICON}<span>Assistente</span></button>
     <span class="spacer nav-extra"></span>
     <button class="nav-extra" title=${`Sair (${b.user.name})`} onClick=${() => post('/logout').then(() => location.reload()).catch(fail)}>
       ${icon(html`<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />`)}<span>Sair</span></button>
@@ -147,7 +149,7 @@ function App() {
   else if (p0 === 'campaign' && p1) { page = html`<${CampaignPage} key=${p1} id=${p1 === 'new' ? 'new' : Number(p1)} />`; nav = 'campaigns'; }
   else if (p0 === 'settings') page = html`<${SettingsPage} section=${p1} />`;
   else { page = html`<${LeadsPage} key=${query.pipeline || 'x'} query=${query} />`; nav = 'leads'; }
-  return html`${trialBar}<div class="shell"><${Nav} current=${nav} />${page}</div><${Toasts} />`;
+  return html`${trialBar}<div class="shell"><${Nav} current=${nav} />${page}</div><${Assistente} /><${Toasts} />`;
 }
 
 render(html`<${App} />`, document.getElementById('app'));

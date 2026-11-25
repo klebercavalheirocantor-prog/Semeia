@@ -430,3 +430,22 @@ fieldset.field legend { padding: 0; margin-bottom: var(--s-2); }
 .plan-price span { font-size: var(--fs-sm); font-weight: 400; color: var(--c-muted); }
 .plan-card ul { margin: 0; padding-left: 18px; font-size: var(--fs-sm); color: var(--c-muted); flex: 1; }
 .trial-bar + .shell { height: calc(100vh - 31px); }
+
+/* Assistente (Claude dentro do CRM) */
+.nav .nav-assist svg { color: #FDBA74; }
+.assist { position: fixed; right: 20px; bottom: 20px; z-index: 50; width: min(400px, calc(100vw - 24px)); height: min(600px, calc(100vh - 40px));
+  display: flex; flex-direction: column; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-3); box-shadow: var(--shadow-2); }
+.assist header { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--c-border); }
+.assist header .xs { flex: 1; }
+.assist-body { flex: 1; overflow-y: auto; padding: var(--s-3); display: flex; flex-direction: column; gap: var(--s-2); }
+.assist-hello { display: flex; flex-direction: column; gap: var(--s-2); font-size: var(--fs-sm); }
+.assist-hello .btn { justify-content: flex-start; height: auto; padding: 8px 12px; text-align: left; white-space: normal; }
+.assist-msg { max-width: 88%; padding: 8px 12px; border-radius: 12px; font-size: var(--fs-sm); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.assist-msg.user { align-self: flex-end; background: var(--c-primary-soft); color: #7C2D12; }
+.assist-msg.assistant { align-self: flex-start; background: var(--c-surface-2); border: 1px solid var(--c-border); }
+.assist-msg.error { border-color: var(--c-danger); color: var(--c-danger); }
+.assist-done { margin: 6px 0 0; padding: 0; list-style: none; color: var(--c-ok); font-weight: 600; }
+.assist-input { display: flex; gap: var(--s-2); padding: var(--s-2); border-top: 1px solid var(--c-border); }
+.assist-input textarea { flex: 1; resize: none; font: inherit; padding: 8px; border: 1px solid var(--c-border-strong); border-radius: var(--r-2); }
+.assist-input .btn { align-self: flex-end; }
+@media (max-width: 760px) { .assist { right: 12px; bottom: 76px; height: calc(100vh - 96px); } }

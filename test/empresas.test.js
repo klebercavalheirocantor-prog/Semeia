@@ -202,3 +202,39 @@ test('aviso do Mercado Pago ativa a assinatura só depois de conferir na API del
     assert.equal(await syncSubscription('PRE1').then((x) => x.status), 'ativo');
   } finally { globalThis.fetch = real; delete process.env.MP_ACCESS_TOKEN; }
 });
+
+test('assistente: faz no CRM com o login de quem pediu (tarefa criada na empresa certa)', async () => {
+  db.inAccount(A, () => db.setSetting('ai', { ...db.getSetting('ai', {}), api_key: 'sk-ant-teste' }));
+  const lead = db.inAccount(A, () => db.one("select id from leads where name = 'Segredo da A'").id);
+  const real = globalThis.fetch;
+  const seen = [];
+  let step = 0;
+  globalThis.fetch = async (url, init) => {
+    if (!String(url).startsWith('https://api.anthropic.com/')) return real(url, init);
+    seen.push(JSON.parse(init.body));
+    step++;
+    const content = step === 1
+      ? [{ type: 'tool_use', id: 't1', name: 'buscar_leads', input: { busca: 'Segredo' } }]
+      : step === 2 ? [{ type: 'tool_use', id: 't2', name: 'criar_tarefa', input: { lead_id: lead, texto: 'Ligar para o cliente', quando: '2026-11-26T09:00' } }]
+      : [{ type: 'text', text: 'Pronto, criei a tarefa para amanhã às 9h.' }];
+    return new Response(JSON.stringify({ content, stop_reason: step < 3 ? 'tool_use' : 'end_turn' }), { status: 200 });
+  };
+  try {
+    const r = await call('a', 'POST', '/api/assistente', { messages: [{ role: 'user', content: 'cria tarefa de ligar pro Segredo amanhã 9h' }] });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.match(r.body.reply, /criei a tarefa/);
+    assert.equal(r.body.actions.length, 1);
+    // a busca voltou o lead da própria empresa
+    const toolResult = seen[1].messages.at(-1).content[0].content;
+    assert.match(toolResult, /Segredo da A/);
+    const t = db.inAccount(A, () => db.one("select * from tasks where entity = 'lead' and entity_id = ?", lead));
+    assert.equal(t.text, 'Ligar para o cliente');
+    assert.equal(new Date(t.due_at).toISOString(), '2026-11-26T12:00:00.000Z'); // 9h de Brasília
+    // só tem ações seguras: nada de enviar mensagem, campanha ou apagar
+    const names = seen[0].tools.map((x) => x.name);
+    assert.ok(!names.some((n) => /enviar|mensagem|campanha|apagar|excluir/.test(n)), names.join(','));
+    // empresa sem chave: avisa em vez de quebrar
+    const rb = await call('b', 'POST', '/api/assistente', { messages: [{ role: 'user', content: 'oi' }] });
+    assert.equal(rb.status, 400);
+  } finally { globalThis.fetch = real; }
+});

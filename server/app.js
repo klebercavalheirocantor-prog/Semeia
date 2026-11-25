@@ -17,6 +17,7 @@ import { flowOnHuman, flowOnStage, validateGraph, simulate, portsOf } from './fl
 import { claude, DEFAULT_MODEL, translateOut, translateIn } from './ai.js';
 import { transcribeMessage, groqKey } from './transcribe.js';
 import { perfil } from './perfil.js';
+import { talk } from './assistente.js';
 import { PLANS, TRIAL_DAYS, signupOpen, canUse, limits, billingInfo, startTrial, checkout, syncSubscription } from './billing.js';
 import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES, markReadWeb } from './waweb.js';
 
@@ -238,6 +239,17 @@ app.put('/api/quick-replies', (req, res) => {
   setSetting(brandKey('quick_replies', req.brand), clean);
   emit('config');
   res.json(clean);
+});
+
+// ---------- assistente: a pessoa conversa e o Claude faz no CRM por ela, só com as ações e permissões dela.
+app.post('/api/assistente', async (req, res) => {
+  const msgs = (Array.isArray(req.body?.messages) ? req.body.messages : []).slice(-20)
+    .filter((m) => ['user', 'assistant'].includes(m?.role) && String(m.content || '').trim())
+    .map((m) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
+  while (msgs.length && msgs[0].role !== 'user') msgs.shift();
+  if (!msgs.length || msgs.at(-1).role !== 'user') throw httpError(400, 'Escreva uma mensagem');
+  res.json(await talk({ messages: msgs, user: req.user, brand: req.brand, brandId: req.brand, company: one('select name from brands where id = ?', req.brand)?.name || '',
+    base: `http://127.0.0.1:${req.socket.localPort}`, cookie: req.get('cookie') || '' }));
 });
 
 // ---------- plano e pagamento (administrador da empresa)

@@ -19,6 +19,20 @@ export async function claude({ system, messages, maxTokens = 600, brandId = 1 })
   return (data.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('').trim();
 }
 
+// Chamada com ferramentas (assistente do CRM): devolve a resposta inteira (texto + pedidos de ferramenta).
+export async function claudeRaw({ system, messages, tools, maxTokens = 1000, brandId = 1 }) {
+  const cfg = getSetting(brandKey('ai', brandId), {});
+  if (!cfg.api_key) throw httpError(400, 'Para usar o assistente, cadastre a chave da Anthropic em Ajustes › Assistente de IA');
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': cfg.api_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: cfg.model || DEFAULT_MODEL, max_tokens: maxTokens, system, messages, tools }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(`IA: ${data.error?.message || res.status}`), { status: 502 });
+  return data;
+}
+
 // O modelo responde só JSON; tolera texto em volta.
 function parseJson(text) {
   const m = String(text).match(/\{[\s\S]*\}/);
