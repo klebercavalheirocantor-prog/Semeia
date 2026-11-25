@@ -6,10 +6,8 @@ Plano completo: doc "Semeia SaaS: plano para vender o CRM" (claude.ai, projeto C
 
 ## Regras desta branch
 
-- **Nunca juntar com a `main`.** A `main` é o Semeia da AgroVox, em produção no Railway (crm.agro-vox.com).
-  O Railway só publica a `main`; esta branch não vai ao ar sozinha.
-- O caminho é sempre `main` → `produto` (as melhorias feitas para a AgroVox entram aqui), nunca o contrário.
-- Quando o Fechaê tiver servidor e repositório próprios, esta branch muda para lá.
+- Desde 25/11/2026 a `main` (Railway, crm.agro-vox.com) já roda esta versão: a AgroVox é a empresa nº 1.
+- Voltar para a versão antiga, se precisar: publicar o commit 3cd8424 (os dados nunca saíram do lugar).
 
 ## Como as empresas ficam separadas (feito em 25/11)
 
@@ -21,10 +19,9 @@ Plano completo: doc "Semeia SaaS: plano para vender o CRM" (claude.ai, projeto C
   empresa por empresa (`eachAccount`). Eventos do WhatsApp ficam presos à empresa dona do número (`bound`).
 - Sem empresa definida, o código só funciona se existir uma empresa só; com duas ou mais, dá erro (falha segura).
 - "Marcas" continuam existindo DENTRO de uma empresa (ex.: AgroVox + AgroPool dividem contatos e equipe).
-- **Migração da AgroVox**: ao ligar esta versão na pasta de dados de hoje, o `crm.db`, `uploads`, `whatsapp-web`,
-  `backups` e `investimento.json` da raiz viram a empresa nº 1 sozinhos. Cookie antigo continua valendo (empresa 1),
-  webhook e links antigos também. Os números de WhatsApp devem voltar sem novo QR (mesma pasta de sessão), mas
-  planejar a troca num horário calmo, com o OK do Kleber.
+- **AgroVox**: o banco e os arquivos que já estavam na raiz de `data/` são a empresa nº 1, sem sair do lugar
+  (empresas novas ficam em `data/contas/<nº>/`). Cookie, webhook e links antigos continuam valendo.
+  No ar desde 25/11/2026 (decisão do Kleber: rodar o Fechaê já no servidor da AgroVox).
 - Empresa nova (piloto): `node server/index.js nova-empresa "Empresa" "Nome do admin" email senha`.
 
 ## Perfil do ramo (feito em 25/11)

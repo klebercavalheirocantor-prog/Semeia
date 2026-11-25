@@ -109,7 +109,7 @@ test('com mais de uma empresa, código sem empresa definida é barrado', () => {
   assert.throws(() => db.one('select 1'), /sem empresa/);
 });
 
-test('Semeia de uma empresa só (AgroVox): os dados viram a empresa nº 1 ao atualizar', () => {
+test('Semeia de uma empresa só (AgroVox): os dados da raiz são a empresa nº 1, sem mudar de lugar', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-antigo-'));
   // banco do jeito que está hoje na AgroVox: migrações até a 011, com usuário cadastrado
   const old = new DatabaseSync(path.join(dir, 'crm.db'));
@@ -131,8 +131,10 @@ test('Semeia de uma empresa só (AgroVox): os dados viram a empresa nº 1 ao atu
   assert.equal(r.x, 'dados da agrovox');
   assert.equal(r.email, 'k@agro-vox.com'); // mesmo login de antes
   assert.equal(r.perfil, 'agrovox'); // tudo continua do jeito da AgroVox
-  assert.ok(fs.existsSync(path.join(dir, 'contas', '1', 'uploads', 'foto.png')));
-  assert.ok(!fs.existsSync(path.join(dir, 'crm.db')));
+  // nada sai do lugar: a versão antiga continuaria achando tudo onde sempre esteve
+  assert.ok(fs.existsSync(path.join(dir, 'uploads', 'foto.png')));
+  assert.ok(fs.existsSync(path.join(dir, 'crm.db')));
+  assert.ok(!fs.existsSync(path.join(dir, 'contas', '1', 'crm.db')));
 });
 
 test('empresa nova nasce neutra: sem tabelas, fluxos, respostas ou nomes da AgroVox', async () => {

@@ -15,17 +15,10 @@ export const platform = new DatabaseSync(path.join(DATA_ROOT, 'plataforma.db'));
 platform.exec(`pragma journal_mode = wal; pragma busy_timeout = 5000;
   create table if not exists accounts (id integer primary key, name text not null, active integer not null default 1, created_at integer not null)`);
 
-// Semeia de uma empresa só (o da AgroVox): banco e arquivos na raiz de data/ viram a empresa nº 1, do jeito que estão.
-function adoptSingleCompany() {
-  const dir = path.join(ACCOUNTS_DIR, '1');
-  if (!fs.existsSync(path.join(DATA_ROOT, 'crm.db')) || fs.existsSync(path.join(dir, 'crm.db'))) return;
-  fs.mkdirSync(dir, { recursive: true });
-  for (const f of ['crm.db', 'crm.db-wal', 'crm.db-shm', 'crm.db.restore', 'uploads', 'whatsapp-web', 'backups', 'investimento.json']) {
-    if (fs.existsSync(path.join(DATA_ROOT, f))) fs.renameSync(path.join(DATA_ROOT, f), path.join(dir, f));
-  }
-  console.log('Dados da empresa única guardados como empresa nº 1.');
-}
-adoptSingleCompany();
+// Semeia de uma empresa só (o da AgroVox): o banco e os arquivos que já estão na raiz de data/ SÃO a empresa nº 1,
+// do jeito que estão. Nada é movido: a versão antiga continua achando tudo no mesmo lugar, se um dia precisar voltar.
+const LEGACY = fs.existsSync(path.join(DATA_ROOT, 'crm.db')) && !fs.existsSync(path.join(ACCOUNTS_DIR, '1', 'crm.db'));
+const dirOf = (id) => (id === 1 && LEGACY ? DATA_ROOT : path.join(ACCOUNTS_DIR, String(id)));
 if (!platform.prepare('select 1 from accounts limit 1').get()) {
   platform.prepare('insert into accounts(id, name, created_at) values(1, ?, ?)').run('Minha empresa', Date.now());
 }
@@ -36,7 +29,7 @@ function openAccount(id) {
   id = Number(id);
   if (opened.has(id)) return opened.get(id);
   if (!platform.prepare('select 1 from accounts where id = ?').get(id)) throw new Error(`empresa ${id} não existe`);
-  const dir = path.join(ACCOUNTS_DIR, String(id));
+  const dir = dirOf(id);
   fs.mkdirSync(path.join(dir, 'uploads'), { recursive: true });
   // Mudança de servidor: um banco trazido do outro computador (crm.db.restore) entra no lugar antes de abrir.
   const file = path.join(dir, 'crm.db');
