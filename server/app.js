@@ -15,6 +15,7 @@ import { dashboard } from './dashboard.js';
 import { results, readInvestment } from './results.js';
 import { flowOnHuman, flowOnStage, validateGraph, simulate, portsOf } from './flows.js';
 import { claude, DEFAULT_MODEL, translateOut, translateIn } from './ai.js';
+import { transcribeMessage, groqKey } from './transcribe.js';
 import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES } from './waweb.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -173,7 +174,8 @@ app.get('/api/me', (req, res) => {
     brands: all('select id, name from brands order by id'),
     meta: u.is_admin ? { graph_version: meta.graph_version, verify_token: meta.verify_token, has_app_secret: !!meta.app_secret } : null,
     email: u.is_admin ? (({ api_key, ...e }) => ({ ...e, has_key: !!api_key }))(getSetting(brandKey('email', req.brand), {})) : null,
-    ai: u.is_admin ? (({ api_key, ...e }) => ({ model: DEFAULT_MODEL, ...e, has_key: !!api_key }))(getSetting(brandKey('ai', req.brand), {})) : null,
+    ai: u.is_admin ? (({ api_key, groq_key, ...e }) => ({ model: DEFAULT_MODEL, ...e, has_key: !!api_key, has_groq: !!groq_key }))(getSetting(brandKey('ai', req.brand), {})) : null,
+    transcribe: !!groqKey(req.brand),
     pipelines: all('select * from pipelines where brand_id = ? order by sort, id', req.brand).map((p) => ({ ...p, stages: all('select * from stages where pipeline_id = ? order by sort', p.id) })),
     users: all('select id, name, email, is_admin, is_active, role_id from users order by name'),
     roles: all('select * from roles order by id').map((r) => ({ ...r, rights: JSON.parse(r.rights) })),
@@ -193,7 +195,7 @@ app.patch('/api/settings', (req, res) => {
   const { general, meta, email, ai } = req.body || {};
   if (ai) {
     const k = brandKey('ai', req.brand), cur = getSetting(k, {});
-    setSetting(k, { ...cur, ...ai, api_key: ai.api_key || cur.api_key || '' }); // chave vazia = manter
+    setSetting(k, { ...cur, ...ai, api_key: ai.api_key || cur.api_key || '', groq_key: ai.groq_key || cur.groq_key || '' }); // chave vazia = manter
   }
   if (general) {
     const { company, ...rest } = general; // o nome é da empresa escolhida na setinha
@@ -874,12 +876,22 @@ app.post('/api/messages/:id/translate', async (req, res) => {
   if (!m) throw httpError(404, 'Mensagem não encontrada');
   const c = loadConv(req, m.conversation_id);
   if (m.translated_body) return res.json({ text: m.translated_body });
-  if (!m.body.trim()) throw httpError(400, 'Mensagem sem texto');
+  const src = (m.body || m.transcript || '').trim();
+  if (!src) throw httpError(400, 'Mensagem sem texto');
   const brand = one('select brand_id from channels where id = ?', c.channel_id)?.brand_id || 1;
   let text;
-  try { text = await translateIn(m.body, { brandId: brand }); } catch (e) { throw httpError(e.status === 400 ? 400 : 502, `Não consegui traduzir agora (${e.message}). Tente de novo.`); }
+  try { text = await translateIn(src, { brandId: brand }); } catch (e) { throw httpError(e.status === 400 ? 400 : 502, `Não consegui traduzir agora (${e.message}). Tente de novo.`); }
   run('update messages set translated_body = ? where id = ?', text, m.id);
   res.json({ text });
+});
+
+// Transcrever um áudio recebido (os novos já vêm transcritos sozinhos; este é para os antigos ou se falhou).
+app.post('/api/messages/:id/transcribe', async (req, res) => {
+  const m = one('select * from messages where id = ?', Number(req.params.id));
+  if (!m) throw httpError(404, 'Mensagem não encontrada');
+  loadConv(req, m.conversation_id);
+  if (m.kind !== 'audio' || !m.file_id) throw httpError(400, 'Esta mensagem não é um áudio');
+  res.json(await transcribeMessage(m.id));
 });
 
 function loadConv(req, id) {

@@ -4,6 +4,7 @@ import { createContact, createLead, findContactByPoint, firstStage, openLeadOf, 
 import { downloadMedia, fetchProfileName } from './meta.js';
 import { onInbound, REPLY_WINDOW_MS } from './campaigns.js';
 import { flowOnInbound } from './flows.js';
+import { transcribeMessage, groqKey } from './transcribe.js';
 
 const RANK = { pending: 0, sent: 1, delivered: 2, read: 3, failed: 4 };
 
@@ -92,7 +93,14 @@ export function handleMessage(item) {
   // Depois do commit: baixar mídia e buscar o nome do perfil, sem travar o webhook.
   if (item.msg.media) {
     downloadMedia(channel, item.msg.media)
-      .then((fid) => { run('update messages set file_id = ? where id = ?', fid, res.messageId); emit('message', { conversation_id: res.conversationId }); })
+      .then((fid) => {
+        run('update messages set file_id = ? where id = ?', fid, res.messageId);
+        emit('message', { conversation_id: res.conversationId });
+        // áudio do cliente: transcreve sozinho (se a chave da Groq estiver salva)
+        if (item.direction === 'in' && item.msg.kind === 'audio' && groqKey(channel.brand_id)) {
+          transcribeMessage(res.messageId).catch((e) => console.error('transcrição falhou', e.message));
+        }
+      })
       .catch((e) => run('update messages set error = ? where id = ?', `mídia: ${e.message}`, res.messageId));
   }
   if (res.created && channel.kind !== 'whatsapp') {

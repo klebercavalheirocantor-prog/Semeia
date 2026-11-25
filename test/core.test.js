@@ -1431,3 +1431,51 @@ test('respostas prontas com a tabela do número e "Traduzir para português" na 
   assert.equal((await call('admin', 'GET', `/api/conversations/${conv.id}`)).body.messages.find((m) => m.id === msg.id).translated_body, 'Olá, tenho uma StarFire 6000');
   await call('admin', 'POST', `/api/waweb/${ch.id}/options`, { translate_to: '' });
 });
+
+test('áudio do cliente: transcreve sozinho pela Groq e traduz para português; botão para os antigos', async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const groq = [];
+  const prev = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (String(url) === 'https://api.groq.com/openai/v1/audio/transcriptions') {
+      groq.push({ auth: init.headers.Authorization, file: init.body.get('file'), model: init.body.get('model') });
+      return new Response(JSON.stringify(groq.length === 1 ? { text: 'Hola, quiero el precio de la señal', language: 'spanish' } : { text: 'Bom dia, quero saber o preço', language: 'portuguese' }), { status: 200 });
+    }
+    return prev(url, init);
+  };
+  try {
+    assert.equal((await call('admin', 'GET', '/api/me')).body.transcribe, false);
+    await call('admin', 'PATCH', '/api/settings', { ai: { groq_key: 'gsk_teste' } });
+    const me = (await call('admin', 'GET', '/api/me')).body;
+    assert.deepEqual([me.transcribe, me.ai.has_groq, 'groq_key' in me.ai], [true, true, false]); // a chave não volta para a tela
+    await call('admin', 'PATCH', '/api/settings', { ai: { persona: 'x' } }); // salvar sem a chave mantém a chave
+    assert.equal((await call('admin', 'GET', '/api/me')).body.transcribe, true);
+
+    const ch = (await call('admin', 'POST', '/api/waweb', { novo: true, name: 'Áudios (teste)' })).body;
+    await wait(20);
+    waFake.client.emit('ready');
+    const audio = (from, id) => ({ from, to: '556793300144@c.us', body: '', type: 'ptt', id: { _serialized: id }, timestamp: Math.floor(Date.now() / 1000), fromMe: false, hasMedia: true,
+      downloadMedia: async () => ({ data: Buffer.from('OggS-fake').toString('base64'), mimetype: 'audio/ogg; codecs=opus' }), getContact: async () => ({ number: from.split('@')[0], pushname: 'Luis' }) });
+    aiAnswers = ['Olá, quero o preço do sinal'];
+    waFake.client.emit('message', audio('595976000555@c.us', 'aud-1'));
+    await wait(80); await flush();
+    const m = one("select * from messages where external_id = 'aud-1'");
+    assert.deepEqual([m.kind, m.transcript, m.translated_body], ['audio', 'Hola, quiero el precio de la señal', 'Olá, quero o preço do sinal']);
+    assert.deepEqual([groq[0].auth, groq[0].model, groq[0].file.name], ['Bearer gsk_teste', 'whisper-large-v3-turbo', 'audio.ogg']);
+
+    // áudio em português: só transcreve, sem tradução; transcrever de novo não chama a Groq outra vez
+    const calls = anthropic.length;
+    waFake.client.emit('message', audio('5567999990777@c.us', 'aud-2'));
+    await wait(80); await flush();
+    const m2 = one("select * from messages where external_id = 'aud-2'");
+    assert.deepEqual([m2.transcript, m2.translated_body, anthropic.length], ['Bom dia, quero saber o preço', null, calls]);
+    const r = await call('admin', 'POST', `/api/messages/${m2.id}/transcribe`);
+    assert.deepEqual([r.body.transcript, groq.length], ['Bom dia, quero saber o preço', 2]);
+    // mensagem de texto não é áudio
+    const txt = one("select id from messages where kind = 'text' and direction = 'in' limit 1");
+    assert.equal((await call('admin', 'POST', `/api/messages/${txt.id}/transcribe`)).status, 400);
+  } finally {
+    globalThis.fetch = prev;
+    setSetting('ai', { ...getSetting('ai', {}), groq_key: '' }); // pela tela, campo vazio mantém a chave
+  }
+});

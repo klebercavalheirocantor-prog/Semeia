@@ -25,10 +25,15 @@ export function Bubble({ m, channelId }) {
   const [zoom, setZoom] = useState(false);
   // Número com tradução (Paraguai/Argentina, EUA): a mensagem do cliente ganha "Traduzir para português".
   const group = B().channels.find((x) => x.id === (m.channel_id ?? channelId))?.group;
-  const canTr = m.direction === 'in' && m.body && (group === 'es' || group === 'en');
   const [tr, setTr] = useState(m.translated_body || '');
   const [trBusy, setTrBusy] = useState(false);
   const translate = async () => { setTrBusy(true); try { setTr((await post(`/messages/${m.id}/translate`)).text); } catch (e) { fail(e); } setTrBusy(false); };
+  // Áudio do cliente: texto transcrito (Groq); os novos chegam transcritos, os antigos têm o botão.
+  const [ts, setTs] = useState(m.transcript || '');
+  const transcribe = async () => { setTrBusy(true); try { const r = await post(`/messages/${m.id}/transcribe`); setTs(r.transcript); if (r.translated) setTr(r.translated); } catch (e) { fail(e); } setTrBusy(false); };
+  useEffect(() => { if (m.transcript) setTs(m.transcript); if (m.translated_body) setTr(m.translated_body); }, [m.transcript, m.translated_body]);
+  const canTr = m.direction === 'in' && (m.body || ts) && (group === 'es' || group === 'en');
+  const canTs = m.direction === 'in' && m.kind === 'audio' && m.file_id && !ts && B().transcribe;
   const f = m.file_id && `/api/files/${m.file_id}`;
   const mime = m.file_mime || '';
   let media = null;
@@ -42,7 +47,9 @@ export function Bubble({ m, channelId }) {
   return html`<div class="bubble ${m.direction} ${m.status === 'failed' ? 'failed' : ''}">
     ${media}${media && m.body ? html`<br />` : ''}${m.body}
     ${m.original_body && html`<div class="small muted" style="margin-top:4px">🌐 traduzido · você escreveu: ${m.original_body}</div>`}
-    ${canTr && tr && html`<div class="small tr-in">🌐 Em português: ${tr}</div>`}
+    ${ts && html`<div class="small tr-in">📝 ${ts}</div>`}
+    ${canTs && html`<button type="button" class="link-btn small" disabled=${trBusy} onClick=${transcribe}>${trBusy ? 'Transcrevendo…' : '📝 Transcrever áudio'}</button>`}
+    ${tr && html`<div class="small tr-in">🌐 Em português: ${tr}</div>`}
     ${canTr && !tr && html`<button type="button" class="link-btn small" disabled=${trBusy} onClick=${translate}>${trBusy ? 'Traduzindo…' : '🌐 Traduzir para português'}</button>`}
     <div class="meta">
       ${m.channel && html`<${Channel} kind=${m.channel} />`}

@@ -134,10 +134,10 @@ function QuickReplies() {
 
 function AiSettings() {
   const a = B().ai || {};
-  const [f, setF] = useState({ model: a.model || 'claude-haiku-5-5', persona: a.persona || '', knowledge: a.knowledge || '', api_key: '' });
+  const [f, setF] = useState({ model: a.model || 'claude-haiku-5-5', persona: a.persona || '', knowledge: a.knowledge || '', api_key: '', groq_key: '' });
   const [busy, setBusy] = useState(false);
   const set = (k) => (x) => setF({ ...f, [k]: x.target.value });
-  const save = () => patch('/settings', { ai: f }).then(() => { toast('Salvo'); setF({ ...f, api_key: '' }); }).catch(fail);
+  const save = () => patch('/settings', { ai: f }).then(async () => { toast('Salvo'); setF({ ...f, api_key: '', groq_key: '' }); await loadBoot(); }).catch(fail);
   const test = async () => { setBusy(true); try { await post('/ai/test'); toast('A IA respondeu: chave funcionando'); } catch (x) { fail(x); } setBusy(false); };
   return html`<div class="col" style="max-width:760px"><div class="card pad form"><h2>Assistente de IA</h2>
     <p class="small muted">Usado nos fluxos (nós "IA responde" e "IA entende a intenção"). Ele responde as primeiras perguntas <strong>só com o que está na base abaixo</strong>
@@ -150,6 +150,10 @@ function AiSettings() {
     <label class="field">Quem é o atendente (opcional)<input placeholder="Ex.: Você é a Ana, da AgroVox, atendendo produtores rurais no WhatsApp." value=${f.persona} onInput=${set('persona')} /></label>
     <label class="field">Base de conhecimento<textarea rows="16" value=${f.knowledge} onInput=${set('knowledge')}></textarea></label>
     <p class="xs muted">Escreva como se explicasse a um vendedor novo: produtos, preços, prazos, formas de pagamento, o que não fazemos. Se um preço não estiver aqui, a IA não inventa: passa para você.</p>
+    <h3 style="margin-top:16px">Transcrição de áudio</h3>
+    <p class="small muted">O áudio que o cliente manda vira texto na conversa (e, se for em espanhol ou inglês, já vem traduzido para português). Usa a Groq, que tem plano gratuito:
+      crie a chave em <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> e cole aqui.</p>
+    <label class="field">Chave da API da Groq<input type="password" autocomplete="new-password" placeholder=${a.has_groq ? '•••••••• salva (deixe vazio para manter)' : 'gsk_...'} value=${f.groq_key} onInput=${set('groq_key')} /></label>
     <div class="row"><button class="btn primary" onClick=${save}>Salvar</button><button class="btn" disabled=${busy || !a.has_key} onClick=${test}>Testar chave</button></div>
   </div></div>`;
 }
