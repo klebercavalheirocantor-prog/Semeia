@@ -1357,3 +1357,18 @@ test('excluir conversa: some com as mensagens; lead não triado sai junto, lead 
   const c3 = one("select * from conversations where external_id = '5511977770002'");
   assert.equal(c3.lead_id, c2.lead_id);
 });
+
+test('respostas prontas: padrão da AgroVox, admin edita por empresa, vendedor não edita', async () => {
+  let me = (await call('admin', 'GET', '/api/me')).body;
+  assert.deepEqual(me.quick_replies.map((r) => r.title), ['Site', 'Pagamento no cartão', 'Pagamento em cripto', 'Sinais Trimble (diferença)']);
+  assert.match(me.quick_replies[0].es, /Conozca/);
+  const r = await call('admin', 'PUT', '/api/quick-replies', [{ title: ' PIX ', pt: 'Chave PIX: contato@agro-vox.com', es: '' }, { title: 'vazia', pt: '', es: '' }]);
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body, [{ title: 'PIX', pt: 'Chave PIX: contato@agro-vox.com', es: '' }]); // sem texto sai da lista
+  me = (await call('admin', 'GET', '/api/me')).body;
+  assert.equal(me.quick_replies.length, 1);
+  assert.equal((await call('admin', 'PUT', '/api/quick-replies', [{ title: '', pt: 'sem nome' }])).status, 400);
+  // AgroPool (empresa 2) tem a lista dela, começa vazia
+  assert.deepEqual((await call('admin', 'GET', '/api/me', undefined, { 'x-brand': '2' })).body.quick_replies, []);
+  assert.ok([401, 403].includes((await call('beto', 'PUT', '/api/quick-replies', [])).status));
+});

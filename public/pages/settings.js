@@ -1,6 +1,6 @@
 import { html, useState, useEffect, api, post, patch, del, fail, toast, B, loadBoot, Modal, Confirm, UserSelect, Empty } from '../lib.js';
 
-const SECTIONS = [['general', 'Geral'], ['channels', 'Canais'], ['templates', 'Modelos do WhatsApp'], ['email', 'E-mail'], ['ai', 'Assistente de IA'], ['pipelines', 'Funis e etapas'], ['users', 'Equipe'], ['roles', 'Permissões'], ['fields', 'Campos'], ['lists', 'Tags e listas'], ['account', 'Minha conta']];
+const SECTIONS = [['general', 'Geral'], ['channels', 'Canais'], ['templates', 'Modelos do WhatsApp'], ['email', 'E-mail'], ['ai', 'Assistente de IA'], ['quick', 'Respostas prontas'], ['pipelines', 'Funis e etapas'], ['users', 'Equipe'], ['roles', 'Permissões'], ['fields', 'Campos'], ['lists', 'Tags e listas'], ['account', 'Minha conta']];
 
 function Account() {
   const me = B().user;
@@ -109,6 +109,27 @@ function MailboxSettings() {
     ${ch && html`<p class="xs ${ch.mail_error ? 'error-text' : 'muted'}">${ch.mail_error ? `Erro na última conferida: ${ch.mail_error}` : ch.checked_at ? `Conferida às ${new Date(ch.checked_at).toLocaleTimeString('pt-BR')}` : 'Ainda não conferida'}</p>`}
     <div class="row"><button class="btn primary" disabled=${busy} onClick=${save}>Salvar e testar</button></div>
   </div>`;
+}
+
+function QuickReplies() {
+  const [list, setList] = useState(() => (B().quick_replies || []).map((r) => ({ ...r })));
+  const up = (i, k) => (e) => setList(list.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)));
+  const move = (i, d) => { const l = [...list]; [l[i], l[i + d]] = [l[i + d], l[i]]; setList(l); };
+  const save = () => api('/quick-replies', { method: 'PUT', body: list }).then(async (r) => { setList(r); await loadBoot(); toast('Salvo'); }).catch(fail);
+  return html`<div class="col" style="max-width:760px"><div class="card pad form"><h2>Respostas prontas</h2>
+    <p class="small muted">Mensagens que você usa sempre (site, formas de pagamento...). Na conversa, clique em <strong>⚡ Prontas</strong>: o texto entra na caixa e dá para ajustar antes de enviar.
+      No número com tradução para espanhol (Paraguai/Argentina) vai o texto em espanhol; se estiver vazio, vai o em português traduzido.</p>
+    ${list.map((r, i) => html`<div class="card pad col" style="gap:8px">
+      <div class="row"><input aria-label="Nome" placeholder="Nome (ex.: Pagamento no cartão)" value=${r.title} onInput=${up(i, 'title')} style="flex:1" />
+        <button class="btn sm" title="Subir" disabled=${i === 0} onClick=${() => move(i, -1)}>↑</button>
+        <button class="btn sm" title="Descer" disabled=${i === list.length - 1} onClick=${() => move(i, 1)}>↓</button>
+        <button class="btn danger sm" onClick=${() => setList(list.filter((_, j) => j !== i))}>Remover</button></div>
+      <label class="field">Português<textarea rows="3" value=${r.pt} onInput=${up(i, 'pt')}></textarea></label>
+      <label class="field">Espanhol (Paraguai/Argentina)<textarea rows="3" value=${r.es} onInput=${up(i, 'es')}></textarea></label>
+    </div>`)}
+    <div class="row"><button class="btn" onClick=${() => setList([...list, { title: '', pt: '', es: '' }])}>+ Nova resposta</button>
+      <span class="spacer"></span><button class="btn primary" onClick=${save}>Salvar</button></div>
+  </div></div>`;
 }
 
 function AiSettings() {
@@ -437,7 +458,7 @@ function Lists() {
 export function SettingsPage({ section }) {
   const isAdmin = B().user.is_admin;
   const sec = isAdmin ? section || 'general' : 'account';
-  const View = { general: General, channels: Channels, templates: Templates, email: EmailSettings, ai: AiSettings, pipelines: Pipelines, users: Users, roles: Roles, fields: Fields, lists: Lists, account: Account }[sec] || General;
+  const View = { general: General, channels: Channels, templates: Templates, email: EmailSettings, ai: AiSettings, quick: QuickReplies, pipelines: Pipelines, users: Users, roles: Roles, fields: Fields, lists: Lists, account: Account }[sec] || General;
   return html`<div class="main"><div class="topbar"><h1>Configurações</h1></div><div class="page"><div class="settings">
     <nav aria-label="Seções">${SECTIONS.filter(([k]) => isAdmin || k === 'account').map(([k, l]) => html`<a href=${`#/settings/${k}`} aria-current=${sec === k ? 'page' : null}>${l}</a>`)}</nav>
     <div><${View} /></div>

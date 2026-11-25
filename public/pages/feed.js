@@ -255,6 +255,7 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
   const [task, setTask] = useState({ type_id: B().task_types[0]?.id, due_at: endOfDay(0), responsible_id: B().user.id });
   const fileRef = useRef();
   const [markup, setMarkup] = useState(null); // foto escolhida, abrindo para riscar antes de mandar
+  const [quickOpen, setQuickOpen] = useState(false);
   useEffect(() => { if (!conversations.find((c) => c.id === convId)) setConvId(open[0]?.id || conversations[0]?.id); }, [conversations.map((c) => c.id + c.status).join()]);
   const conv = conversations.find((c) => c.id === convId);
   const trTo = B().channels.find((x) => x.id === conv?.channel_id)?.translate_to || '';
@@ -290,6 +291,13 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
     if (/^image\/(jpeg|png|webp)$/.test(file.type)) setMarkup(file);
     else sendFile(file);
   };
+  // Resposta pronta: entra na caixa de texto (dá para mexer antes de enviar). Número com tradução para espanhol usa a versão em espanhol.
+  const quick = B().quick_replies || [];
+  const useQuick = (r) => {
+    const t = (trTo === 'es' && r.es) || r.pt || r.es;
+    setText((cur) => (cur.trim() ? `${cur.trimEnd()}\n${t}` : t));
+    setQuickOpen(false);
+  };
   const reopen = () => patch(`/conversations/${convId}`, { status: 'open' }).catch(fail);
 
   if (disabled) return html`<div class="composer muted small">Você pode ver, mas não editar este registro.</div>`;
@@ -320,7 +328,14 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
       value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(); }}></textarea>
     <div class="row">
       ${tab === 'msg' && html`<input type="file" ref=${fileRef} class="sr-only" id="file-${entityId}" onChange=${(e) => pickFile(e.target.files[0])} />
-        <label for="file-${entityId}" class="btn" title="Anexar arquivo" tabindex="0" onKeyDown=${(e) => e.key === 'Enter' && fileRef.current.click()}>📎 Arquivo</label>`}
+        <label for="file-${entityId}" class="btn" title="Anexar arquivo" tabindex="0" onKeyDown=${(e) => e.key === 'Enter' && fileRef.current.click()}>📎 Arquivo</label>
+        ${quick.length > 0 && html`<span style="position:relative">
+          <button class="btn" aria-expanded=${quickOpen} title="Respostas prontas" disabled=${conv?.status === 'closed'} onClick=${() => setQuickOpen(!quickOpen)}>⚡ Prontas</button>
+          ${quickOpen && html`<div class="card col quick-menu" role="menu" aria-label="Respostas prontas">
+            ${quick.map((r) => html`<button role="menuitem" class="btn ghost" onClick=${() => useQuick(r)} title=${(trTo === 'es' && r.es) || r.pt || r.es}>
+              <strong>${r.title}</strong><span class="xs muted ellipsis">${(trTo === 'es' && r.es) || r.pt || r.es}</span></button>`)}
+            ${B().user.is_admin && html`<a class="xs" href="#/settings/quick" style="padding:4px 8px">Editar respostas prontas</a>`}
+          </div>`}</span>`}`}
       <span class="spacer"></span>
       <button class="btn primary" disabled=${busy || !text.trim() || (tab === 'msg' && conv?.status === 'closed')} onClick=${send}>
         ${busy ? 'Enviando…' : tab === 'msg' ? 'Enviar' : tab === 'note' ? 'Salvar nota' : 'Criar tarefa'}</button>

@@ -135,6 +135,28 @@ function channelsPublic(brandId) {
   });
 }
 
+// ---------- respostas prontas (como no WhatsApp Business), por empresa. "es" é a versão em espanhol (números com tradução).
+const QUICK_DEFAULT = [
+  { title: 'Site', pt: 'Conheça a AgroVox: https://www.agro-vox.com 🌱', es: 'Conozca AgroVox: https://www.agro-vox.com 🌱' },
+  { title: 'Pagamento no cartão', pt: 'O pagamento pode ser feito no cartão de crédito. 💳', es: 'El pago se puede hacer con tarjeta de crédito. 💳' },
+  { title: 'Pagamento em cripto', pt: 'Também aceitamos pagamento em criptomoedas.', es: 'También aceptamos pago con criptomonedas.' },
+  { title: 'Sinais Trimble (diferença)',
+    pt: 'Os sinais da Trimble:\n📡 *RangePoint* (± 15 cm): pulverização, adubação a lanço e preparo de solo. É o mais barato.\n📡 *CenterPoint* (± 4 cm): plantio, colheita e qualquer serviço que precisa de linha reta e repetível. O sinal leva alguns minutos para firmar.\n📡 *CenterPoint Fast* (± 2,5 cm): a mesma aplicação do CenterPoint, só que firma bem mais rápido (perto de 1 minuto) e é um pouco mais preciso. Para quem não pode esperar no começo do dia.',
+    es: 'Las señales de Trimble:\n📡 *RangePoint* (± 15 cm): pulverización, fertilización al voleo y preparación de suelo. Es la más económica.\n📡 *CenterPoint* (± 4 cm): siembra, cosecha y cualquier trabajo que necesite líneas rectas y repetibles. La señal tarda unos minutos en estabilizarse.\n📡 *CenterPoint Fast* (± 2,5 cm): el mismo uso que CenterPoint, pero se estabiliza mucho más rápido (alrededor de 1 minuto) y es un poco más precisa. Ideal para quien no puede esperar al empezar el día.' },
+];
+const quickReplies = (brand) => getSetting(brandKey('quick_replies', brand), null) ?? (Number(brand) === 1 ? QUICK_DEFAULT : []);
+app.put('/api/quick-replies', (req, res) => {
+  admin(req);
+  const list = Array.isArray(req.body) ? req.body : [];
+  if (list.length > 50) throw httpError(400, 'No máximo 50 respostas prontas');
+  const clean = list.map((r) => ({ title: String(r?.title || '').trim().slice(0, 60), pt: String(r?.pt || '').trim().slice(0, 2000), es: String(r?.es || '').trim().slice(0, 2000) }))
+    .filter((r) => r.pt || r.es);
+  if (clean.some((r) => !r.title)) throw httpError(400, 'Dê um nome para cada resposta pronta');
+  setSetting(brandKey('quick_replies', req.brand), clean);
+  emit('config');
+  res.json(clean);
+});
+
 app.get('/api/me', (req, res) => {
   const u = req.user;
   const meta = getSetting('meta', {});
@@ -152,6 +174,7 @@ app.get('/api/me', (req, res) => {
     fields: all('select * from custom_fields order by entity, sort, id').map((f) => ({ ...f, options: JSON.parse(f.options) })),
     tags: all('select * from tags order by name'),
     task_types: all('select * from task_types order by id'),
+    quick_replies: quickReplies(req.brand),
     loss_reasons: all('select * from loss_reasons order by sort, id'),
     channels: u.is_admin ? channelsPublic(req.brand) : channelsPublic(req.brand).map(({ id, kind, name, status }) => ({ id, kind, name, status })),
     unread: one(`select coalesce(sum(c.unread), 0) n from conversations c join channels ch on ch.id = c.channel_id and ch.brand_id = ? left join leads l on l.id = c.lead_id
