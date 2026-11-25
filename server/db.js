@@ -6,6 +6,21 @@ export const DATA_DIR = path.resolve(process.env.DATA_DIR || 'data');
 export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+// Volta da versão Fechaê (um banco por empresa): os dados da empresa nº 1 (AgroVox) voltam para a raiz de data/.
+{
+  const acc1 = path.join(DATA_DIR, 'contas', '1');
+  if (!fs.existsSync(path.join(DATA_DIR, 'crm.db')) && fs.existsSync(path.join(acc1, 'crm.db'))) {
+    for (const f of ['crm.db', 'crm.db-wal', 'crm.db-shm', 'whatsapp-web', 'backups', 'investimento.json']) {
+      if (fs.existsSync(path.join(acc1, f))) fs.rmSync(path.join(DATA_DIR, f), { recursive: true, force: true });
+      if (fs.existsSync(path.join(acc1, f))) fs.renameSync(path.join(acc1, f), path.join(DATA_DIR, f));
+    }
+    // uploads: a raiz já tem a pasta (criada acima); traz os arquivos um a um
+    const up = path.join(acc1, 'uploads');
+    if (fs.existsSync(up)) for (const f of fs.readdirSync(up)) fs.renameSync(path.join(up, f), path.join(UPLOAD_DIR, f));
+    console.log('Dados da empresa nº 1 trazidos de volta para a raiz (volta da versão Fechaê).');
+  }
+}
+
 // Mudança de servidor: um banco trazido do outro computador (crm.db.restore) entra no lugar antes de abrir.
 const DB_FILE = path.join(DATA_DIR, 'crm.db');
 if (fs.existsSync(`${DB_FILE}.restore`)) {
