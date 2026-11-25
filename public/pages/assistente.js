@@ -1,10 +1,26 @@
 // Assistente do Fechaê: botão no menu que abre uma conversa com o Claude, que faz coisas no CRM pela pessoa.
-import { html, useState, useEffect, useRef, post } from '../lib.js';
+import { html, useState, useEffect, useRef, post, fail } from '../lib.js';
 
 const KEY = 'fechae-assistente';
 const load = () => { try { return JSON.parse(sessionStorage.getItem(KEY)) || []; } catch { return []; } };
 const save = (m) => { try { sessionStorage.setItem(KEY, JSON.stringify(m.slice(-30))); } catch {} };
-const EXEMPLOS = ['Quais conversas estão esperando resposta?', 'Quais leads estão sem tarefa?', 'Como foram as vendas nos últimos 7 dias?'];
+const EXEMPLOS = ['Quais conversas estão esperando resposta?', 'Prepara uma resposta para o último cliente que escreveu', 'Quais leads estão sem tarefa?', 'Como foram as vendas nos últimos 7 dias?'];
+
+// Rascunho de resposta: a pessoa confere, pode editar e decide enviar. Só aqui a mensagem sai.
+function Rascunho({ p, onDone }) {
+  const [text, setText] = useState(p.text);
+  const [busy, setBusy] = useState(false);
+  if (p.status === 'sent') return html`<div class="assist-draft done">✓ Enviado para ${p.contato}: “${p.text}”</div>`;
+  if (p.status === 'dropped') return html`<div class="assist-draft done muted">Rascunho descartado</div>`;
+  const enviar = async () => {
+    setBusy(true);
+    try { await post(`/conversations/${p.conversation_id}/messages`, { text }); p.text = text; onDone('sent'); } catch (e) { setBusy(false); fail(e); }
+  };
+  return html`<div class="assist-draft"><div class="xs muted">Rascunho para ${p.contato} (${p.canal}) · <a href=${`#/chats/${p.conversation_id}`}>abrir conversa</a></div>
+    <textarea rows="3" aria-label=${`Resposta para ${p.contato}`} value=${text} onInput=${(e) => setText(e.target.value)}></textarea>
+    <div class="row"><button class="btn primary" disabled=${busy || !text.trim()} onClick=${enviar}>${busy ? 'Enviando…' : 'Enviar'}</button>
+      <button class="btn ghost" disabled=${busy} onClick=${() => onDone('dropped')}>Descartar</button></div></div>`;
+}
 
 export const ASSIST_ICON = html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" /><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" /></svg>`;
 
@@ -22,7 +38,7 @@ export function Assistente() {
     setMsgs(next); setText(''); setBusy(true);
     try {
       const r = await post('/assistente', { messages: next.map(({ role, content }) => ({ role, content })) });
-      setMsgs([...next, { role: 'assistant', content: r.reply || '(sem resposta)', actions: r.actions }]);
+      setMsgs([...next, { role: 'assistant', content: r.reply || '(sem resposta)', actions: r.actions, proposals: r.proposals }]);
     } catch (e) { setMsgs([...next, { role: 'assistant', content: `Não consegui: ${e.message}`, error: true }]); }
     setBusy(false);
   };
@@ -34,10 +50,11 @@ export function Assistente() {
       ${msgs.length > 0 && html`<button class="btn ghost" onClick=${() => setMsgs([])} title="Começar de novo">Limpar</button>`}
       <button class="btn ghost" onClick=${() => setOpen(false)} aria-label="Fechar o assistente">✕</button></header>
     <div class="assist-body">
-      ${!msgs.length && html`<div class="assist-hello"><p>Oi! Posso procurar leads e conversas, resumir uma conversa, criar tarefas, mudar lead de etapa e mostrar os números do painel.</p>
+      ${!msgs.length && html`<div class="assist-hello"><p>Oi! Posso procurar leads e conversas, resumir uma conversa, preparar respostas (você confere e envia), criar tarefas, mudar lead de etapa e mostrar os números do painel.</p>
         ${EXEMPLOS.map((e) => html`<button class="btn" onClick=${() => send(e)}>${e}</button>`)}</div>`}
-      ${msgs.map((m) => html`<div class=${`assist-msg ${m.role}${m.error ? ' error' : ''}`}>${m.content}
-        ${m.actions?.length > 0 && html`<ul class="assist-done">${m.actions.map((a) => html`<li>✓ ${a}</li>`)}</ul>`}</div>`)}
+      ${msgs.map((m, i) => html`<div class=${`assist-msg ${m.role}${m.error ? ' error' : ''}`}>${m.content}
+        ${m.actions?.length > 0 && html`<ul class="assist-done">${m.actions.map((a) => html`<li>✓ ${a}</li>`)}</ul>`}
+        ${(m.proposals || []).map((p) => html`<${Rascunho} key=${`${i}-${p.conversation_id}`} p=${p} onDone=${(st) => { p.status = st; setMsgs([...msgs]); }} />`)}</div>`)}
       ${busy && html`<div class="assist-msg assistant muted">Pensando…</div>`}
       <div ref=${end}></div>
     </div>

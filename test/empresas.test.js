@@ -260,3 +260,29 @@ test('conector do Claude (MCP): link secreto da pessoa, mesmas ações seguras, 
   await call('a', 'DELETE', '/api/mcp-link');
   assert.equal((await rpc({ jsonrpc: '2.0', id: 5, method: 'tools/list' })).status, 401);
 });
+
+test('assistente: resposta ao cliente é só rascunho; quem envia é a pessoa', async () => {
+  const real = globalThis.fetch;
+  const seen = [];
+  let step = 0;
+  globalThis.fetch = async (url, init) => {
+    if (!String(url).startsWith('https://api.anthropic.com/')) return real(url, init);
+    seen.push(JSON.parse(init.body));
+    step++;
+    const content = step === 1 ? [{ type: 'tool_use', id: 'p1', name: 'propor_resposta', input: { conversa_id: 99999, texto: 'Oi! Segue a tabela.' } }]
+      : [{ type: 'text', text: 'Não achei essa conversa.' }];
+    return new Response(JSON.stringify({ content, stop_reason: step === 1 ? 'tool_use' : 'end_turn' }), { status: 200 });
+  };
+  try {
+    const before = db.inAccount(A, () => db.one('select count(*) n from messages').n);
+    const r = await call('a', 'POST', '/api/assistente', { messages: [{ role: 'user', content: 'responde o cliente da conversa 99999' }] });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.proposals, []); // conversa que não existe (ou de outra empresa) não vira rascunho
+    assert.match(seen[1].messages.at(-1).content[0].content, /erro/);
+    assert.ok(seen[0].tools.some((t) => t.name === 'propor_resposta'));
+    assert.equal(db.inAccount(A, () => db.one('select count(*) n from messages').n), before); // nada foi enviado
+  } finally { globalThis.fetch = real; }
+  // o conector do Claude não tem nem o rascunho
+  const { TOOLS } = await import('../server/assistente.js');
+  assert.ok(!TOOLS.some((t) => t.name === 'propor_resposta'));
+});

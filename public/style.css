@@ -449,3 +449,6 @@ fieldset.field legend { padding: 0; margin-bottom: var(--s-2); }
 .assist-input textarea { flex: 1; resize: none; font: inherit; padding: 8px; border: 1px solid var(--c-border-strong); border-radius: var(--r-2); }
 .assist-input .btn { align-self: flex-end; }
 @media (max-width: 760px) { .assist { right: 12px; bottom: 76px; height: calc(100vh - 96px); } }
+.assist-draft { margin-top: 8px; padding: 8px; border: 1px dashed var(--c-primary); border-radius: var(--r-2); background: #fff; display: flex; flex-direction: column; gap: 6px; white-space: normal; }
+.assist-draft textarea { font: inherit; padding: 6px; border: 1px solid var(--c-border-strong); border-radius: var(--r-1); resize: vertical; }
+.assist-draft.done { border-style: solid; border-color: var(--c-ok); color: var(--c-ok); }

@@ -78,7 +78,9 @@ então nada muda para a AgroVox.
   e permissões). Sem enviar mensagem, ligar campanha, apagar ou mexer em ajustes. Usa a chave de IA da empresa.
 - Conector para o app do Claude (MCP, `server/mcp.js`): cada pessoa gera um link secreto em Ajustes › Minha conta e cola
   em Conectores no Claude. O link é uma sessão de login dela (1 ano, desligável); mesmas ações seguras do assistente.
-- [ ] Próximo: ações com confirmação ("posso enviar?"); trocar o link secreto por login OAuth no conector.
+- Resposta ao cliente pelo assistente: só rascunho na tela (editável); sai quando a pessoa clica em Enviar (feito em 25/11).
+  O conector do Claude não tem essa ação.
+- [ ] Próximo: trocar o link secreto por login OAuth no conector.
 
 ## Fase 3
 WhatsApp oficial (Meta) · arquivos fora do servidor · WhatsApp em serviço separado · parcerias com agências.
