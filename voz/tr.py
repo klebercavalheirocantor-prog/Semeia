@@ -3,9 +3,10 @@ try:
     from faster_whisper import WhisperModel
     m = WhisperModel("small", device="cpu", compute_type="int8")
     for line in open("voz/transcribe.txt"):
-        f = line.strip()
-        if not f: continue
-        segs, info = m.transcribe("voz/" + f, language="pt", word_timestamps=True)
+        parts = line.split()
+        if not parts: continue
+        f = parts[0]; lang = parts[1] if len(parts) > 1 else "pt"
+        segs, info = m.transcribe("voz/" + f, language=lang, word_timestamps=True)
         words = []
         for s in segs:
             for w in s.words:
