@@ -4,7 +4,7 @@ import { LeadPage } from './pages/lead.js';
 import { InboxPage } from './pages/inbox.js';
 import { ContactsPage, ContactPage, CompaniesPage, CompanyPage } from './pages/contacts.js';
 import { TasksPage } from './pages/tasks.js';
-import { SettingsPage } from './pages/settings.js';
+import { SettingsPage, Plano } from './pages/settings.js';
 import { DashboardPage } from './pages/dashboard.js';
 import { CampaignsPage, CampaignPage } from './pages/campaigns.js';
 import { FlowsPage, FlowPage } from './pages/flows.js';
@@ -21,10 +21,45 @@ const ICONS = {
   settings: icon(html`<circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2" />`),
 };
 
+// Cadastro pelo site: empresa nova no teste grátis (só aparece com o cadastro aberto no servidor).
+function Signup({ info, back }) {
+  const [f, setF] = useState({ company: '', name: '', email: '', phone: '', password: '', plan: 'profissional', terms: false });
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+  const brl = (c) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+  const submit = async (e) => {
+    e.preventDefault(); setBusy(true); setErr('');
+    try { await post('/signup', f); location.hash = '#/settings/channels'; location.reload(); } catch (x) { setErr(x.message); setBusy(false); }
+  };
+  return html`<main class="auth"><form class="card pad form" onSubmit=${submit}>
+    <div class="auth-brand"><img src="/logo.svg" alt="" width="56" height="56" /><div><strong aria-label="Fechaê">${WORDMARK}</strong><span>CRM que fecha venda</span></div></div>
+    <h1>Criar conta grátis</h1>
+    <p class="small muted">${info.trial_days} dias grátis, sem cartão. Depois, escolha se quer continuar.</p>
+    <label class="field">Nome da empresa<input required autocomplete="organization" value=${f.company} onInput=${set('company')} /></label>
+    <label class="field">Seu nome<input required autocomplete="name" value=${f.name} onInput=${set('name')} /></label>
+    <label class="field">E-mail<input required type="email" autocomplete="email" value=${f.email} onInput=${set('email')} /></label>
+    <label class="field">WhatsApp (com DDD)<input type="tel" autocomplete="tel" value=${f.phone} onInput=${set('phone')} /></label>
+    <label class="field">Senha (mín. 8 caracteres)<input required type="password" minlength="8" autocomplete="new-password" value=${f.password} onInput=${set('password')} /></label>
+    <fieldset class="field"><legend>Plano depois do teste</legend>
+      ${info.plans.map((p) => html`<label class="check"><input type="radio" name="plan" value=${p.key} checked=${f.plan === p.key} onChange=${set('plan')} />
+        <span><strong>${p.name}</strong> · ${brl(p.cents)}/mês · ${p.users} usuários, ${p.whatsapp} ${p.whatsapp === 1 ? 'WhatsApp' : 'WhatsApps'}</span></label>`)}</fieldset>
+    <label class="check"><input type="checkbox" required checked=${f.terms} onChange=${set('terms')} /><span>Li e aceito os <a href="/termos.html" target="_blank" rel="noopener">termos de uso e a política de privacidade</a></span></label>
+    ${err && html`<p class="error-text" role="alert">${err}</p>`}
+    <button class="btn primary" disabled=${busy}>${busy ? 'Criando…' : 'Criar conta e começar'}</button>
+    <p class="xs muted">Já tem conta? <a href="#/login" onClick=${(e) => { e.preventDefault(); back(); }}>Entrar</a></p>
+  </form></main>`;
+}
+
+const WORDMARK = html`<span class="wordmark">fecha<span class="wm-e">e<svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>`;
+
 function Auth({ setup }) {
+  const [signup, setSignup] = useState(null);
+  useEffect(() => { if (!setup) api('/plans').then((p) => { if (p.open) setSignup((s) => s || { info: p, on: location.hash === '#/cadastro' }); }).catch(() => {}); }, []);
   const [f, setF] = useState({ company: '', name: '', email: '', password: '' });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  if (signup?.on) return html`<${Signup} info=${signup.info} back=${() => { location.hash = '#/login'; setSignup({ ...signup, on: false }); }} />`;
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true);
@@ -37,7 +72,7 @@ function Auth({ setup }) {
   };
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   return html`<main class="auth"><form class="card pad form" onSubmit=${submit}>
-    <div class="auth-brand"><img src="/logo.svg" alt="" width="56" height="56" /><div><strong aria-label="Fechaê"><span class="wordmark">fecha<span class="wm-e">e<svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></strong><span>CRM que fecha venda</span></div></div>
+    <div class="auth-brand"><img src="/logo.svg" alt="" width="56" height="56" /><div><strong aria-label="Fechaê">${WORDMARK}</strong><span>CRM que fecha venda</span></div></div>
     <h1>${setup ? 'Bem-vindo ao Fechaê' : 'Entrar'}</h1>
     ${setup && html`<p class="small muted">Crie a conta do administrador. Depois você convida a equipe.</p>
       <label class="field">Nome da empresa<input value=${f.company} onInput=${set('company')} /></label>
@@ -47,6 +82,7 @@ function Auth({ setup }) {
     ${err && html`<p class="error-text" role="alert">${err}</p>`}
     <button class="btn primary" disabled=${busy}>${setup ? 'Criar e entrar' : 'Entrar'}</button>
     ${!setup && html`<p class="xs muted">Esqueceu a senha? Peça ao administrador para trocar em Configurações > Equipe.</p>`}
+    ${!setup && signup && html`<p class="small">Ainda não tem conta? <a href="#/cadastro" onClick=${(e) => { e.preventDefault(); location.hash = '#/cadastro'; setSignup({ ...signup, on: true }); }}>Criar conta grátis</a></p>`}
   </form></main>`;
 }
 
@@ -89,6 +125,12 @@ function App() {
   useEffect(() => { document.title = boot?.unread ? `(${boot.unread}) Fechaê` : 'Fechaê'; }, [boot?.unread]);
   if (state === 'loading') return html`<div class="auth muted">Carregando…</div>`;
   if (state !== 'in') return html`<${Auth} setup=${state === 'setup'} />`;
+  const bi = boot?.billing || {};
+  // Teste acabou ou assinatura parada: só a tela do plano (os dados continuam guardados).
+  if (bi.blocked) return html`<div class="main"><div class="page" style="max-width:900px;margin:0 auto">${B().user.is_admin ? html`<${Plano} />`
+    : html`<section class="card pad"><h2>Acesso pausado</h2><p>O período grátis da empresa acabou. Peça ao administrador para escolher um plano.</p></section>`}</div></div><${Toasts} />`;
+  const trialBar = bi.status === 'teste' && html`<div class="trial-bar">Teste grátis: ${bi.trial_days_left} ${bi.trial_days_left === 1 ? 'dia' : 'dias'} restantes
+    ${B().user.is_admin && html` · <a href="#/settings/plano">Escolher plano</a>`}</div>`;
   const [p0, p1, p2] = parts;
   let page, nav = p0;
   if (p0 === 'lead' && p1) { page = html`<${LeadPage} key=${p1} id=${Number(p1)} />`; nav = 'leads'; }
@@ -105,7 +147,7 @@ function App() {
   else if (p0 === 'campaign' && p1) { page = html`<${CampaignPage} key=${p1} id=${p1 === 'new' ? 'new' : Number(p1)} />`; nav = 'campaigns'; }
   else if (p0 === 'settings') page = html`<${SettingsPage} section=${p1} />`;
   else { page = html`<${LeadsPage} key=${query.pipeline || 'x'} query=${query} />`; nav = 'leads'; }
-  return html`<div class="shell"><${Nav} current=${nav} />${page}</div><${Toasts} />`;
+  return html`${trialBar}<div class="shell"><${Nav} current=${nav} />${page}</div><${Toasts} />`;
 }
 
 render(html`<${App} />`, document.getElementById('app'));

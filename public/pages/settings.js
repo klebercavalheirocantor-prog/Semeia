@@ -1,6 +1,26 @@
 import { html, useState, useEffect, api, post, patch, del, fail, toast, B, loadBoot, Modal, Confirm, UserSelect, Empty } from '../lib.js';
 
-const SECTIONS = [['general', 'Geral'], ['channels', 'Canais'], ['templates', 'Modelos do WhatsApp'], ['email', 'E-mail'], ['ai', 'Assistente de IA'], ['quick', 'Respostas prontas'], ['pipelines', 'Funis e etapas'], ['users', 'Equipe'], ['roles', 'Permissões'], ['fields', 'Campos'], ['lists', 'Tags e listas'], ['account', 'Minha conta']];
+const SECTIONS = [['plano', 'Plano'], ['general', 'Geral'], ['channels', 'Canais'], ['templates', 'Modelos do WhatsApp'], ['email', 'E-mail'], ['ai', 'Assistente de IA'], ['quick', 'Respostas prontas'], ['pipelines', 'Funis e etapas'], ['users', 'Equipe'], ['roles', 'Permissões'], ['fields', 'Campos'], ['lists', 'Tags e listas'], ['account', 'Minha conta']];
+
+// Plano e pagamento: teste grátis, plano atual e assinatura pelo Mercado Pago.
+export function Plano() {
+  const bi = B().billing || {};
+  const [busy, setBusy] = useState('');
+  const brl = (c) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const pay = (plan) => { setBusy(plan); post('/billing/checkout', { plan }).then((r) => { location.href = r.url; }).catch((e) => { setBusy(''); fail(e); }); };
+  if (bi.plan === 'interno') return html`<section class="card pad form"><h2>Plano</h2><p>Esta empresa usa o Fechaê sem cobrança e sem limites.</p></section>`;
+  const status = bi.blocked ? html`<p class="banner danger" role="alert">Seu acesso está pausado. Escolha um plano para voltar a usar; nada foi apagado.</p>`
+    : bi.status === 'teste' ? html`<p class="banner info">Teste grátis: ${bi.trial_days_left} ${bi.trial_days_left === 1 ? 'dia restante' : 'dias restantes'} (plano ${bi.plan_name}).</p>`
+    : bi.status === 'ativo' ? html`<p class="banner info">Assinatura ativa: plano ${bi.plan_name}. A cobrança é mensal, no cartão, pelo Mercado Pago.</p>`
+    : html`<p class="banner warn">Assinatura ${bi.status}. Assine de novo para continuar.</p>`;
+  return html`<section class="card pad form"><h2>Plano</h2>${status}
+    <div class="plans">${(bi.plans || []).map((p) => html`<div class=${`plan-card${p.key === bi.plan ? ' current' : ''}`}>
+      <h3>${p.name}</h3><p class="plan-price">${brl(p.cents)}<span>/mês</span></p>
+      <ul><li>${p.users} usuários</li><li>${p.whatsapp} ${p.whatsapp === 1 ? 'número' : 'números'} de WhatsApp</li><li>Atendente com IA, campanhas e fluxos</li></ul>
+      <button class=${`btn${p.key === bi.plan ? ' primary' : ''}`} disabled=${!!busy} onClick=${() => pay(p.key)}>
+        ${busy === p.key ? 'Abrindo o pagamento…' : bi.status === 'ativo' && p.key === bi.plan ? 'Plano atual' : 'Assinar'}</button></div>`)}</div>
+    <p class="xs muted">O pagamento abre no Mercado Pago. Você pode cancelar quando quiser.</p></section>`;
+}
 
 function Account() {
   const me = B().user;
@@ -461,8 +481,8 @@ function Lists() {
 
 export function SettingsPage({ section }) {
   const isAdmin = B().user.is_admin;
-  const sec = isAdmin ? section || 'general' : 'account';
-  const View = { general: General, channels: Channels, templates: Templates, email: EmailSettings, ai: AiSettings, quick: QuickReplies, pipelines: Pipelines, users: Users, roles: Roles, fields: Fields, lists: Lists, account: Account }[sec] || General;
+  const sec = isAdmin ? section || (B().billing?.plan === 'interno' ? 'general' : 'plano') : 'account';
+  const View = { plano: Plano, general: General, channels: Channels, templates: Templates, email: EmailSettings, ai: AiSettings, quick: QuickReplies, pipelines: Pipelines, users: Users, roles: Roles, fields: Fields, lists: Lists, account: Account }[sec] || General;
   return html`<div class="main"><div class="topbar"><h1>Configurações</h1></div><div class="page"><div class="settings">
     <nav aria-label="Seções">${SECTIONS.filter(([k]) => isAdmin || k === 'account').map(([k, l]) => html`<a href=${`#/settings/${k}`} aria-current=${sec === k ? 'page' : null}>${l}</a>`)}</nav>
     <div><${View} /></div>

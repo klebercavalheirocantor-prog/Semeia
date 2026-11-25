@@ -56,8 +56,18 @@ então nada muda para a AgroVox.
 - [ ] Alerta de erro (e-mail) e página de saúde por empresa.
 
 ## Fase 2 (vender pelo site)
-Cadastro pelo site (a pessoa cria a própria senha) · e-mail de boas-vindas · teste grátis · cobrança automática
-(assinatura no Mercado Pago) com bloqueio por falta de pagamento · planos e limites · painel do dono da plataforma.
+- [x] Nome e logo Fechaê nas telas, ícones do app, cores laranja e marinho (25/11).
+- [x] Cadastro pelo site (`#/cadastro`): empresa nasce no teste grátis de 7 dias, a pessoa cria a própria senha e já entra.
+      Só abre com `CADASTRO_ABERTO=1` no servidor.
+- [x] Planos (Essencial R$ 197, Profissional R$ 397, Empresa R$ 797) com limite de usuários e números de WhatsApp.
+- [x] Fim do teste sem assinatura: acesso pausado (só a tela do plano), dados guardados. AgroVox e empresas do comando
+      `nova-empresa` são "interno": sem cobrança nem limite.
+- [x] Assinatura mensal no Mercado Pago (`POST /api/billing/checkout` → link do MP; aviso em `/webhooks/mercadopago`,
+      conferido na API do MP). Precisa de `MP_ACCESS_TOKEN` no servidor.
+- [x] Termos de uso e privacidade: rascunho em `/termos.html` (falta razão social/CNPJ e revisão de advogado).
+- [ ] Antes de abrir o cadastro: CNPJ que vende, token do Mercado Pago, revisão dos termos, domínio fechae.com,
+      e-mail de boas-vindas, chave de IA da plataforma (empresa nova não tem chave própria da Anthropic).
+- [ ] Painel do dono da plataforma (ver todas as empresas, plano, quem está devendo).
 
 ## Fase 3
 WhatsApp oficial (Meta) · arquivos fora do servidor · WhatsApp em serviço separado · parcerias com agências.

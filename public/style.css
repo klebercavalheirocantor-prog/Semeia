@@ -414,3 +414,19 @@ code.copy { background: var(--c-surface-2); border: 1px solid var(--c-border); b
 .link-btn { display: block; margin-top: 4px; padding: 0; border: 0; background: none; color: var(--c-primary); font: inherit; cursor: pointer; text-align: left; }
 .link-btn:disabled { opacity: .6; cursor: default; }
 .attach-chip { gap: 6px; padding: 4px 8px; margin-bottom: 6px; border: 1px solid var(--c-border); border-radius: var(--r-pill, 999px); background: var(--c-surface); }
+
+/* Fechaê: cadastro, plano e teste grátis */
+.check { display: flex; align-items: flex-start; gap: var(--s-2); font-size: var(--fs-sm); line-height: 1.4; cursor: pointer; }
+.check input { margin-top: 3px; accent-color: var(--c-primary); }
+fieldset.field { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--s-2); }
+fieldset.field legend { padding: 0; margin-bottom: var(--s-2); }
+.trial-bar { background: #14213D; color: #fff; text-align: center; font-size: var(--fs-sm); padding: 6px var(--s-3); }
+.trial-bar a { color: #FDBA74; font-weight: 600; }
+.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--s-3); }
+.plan-card { border: 1px solid var(--c-border); border-radius: var(--r-3); padding: var(--s-4); display: flex; flex-direction: column; gap: var(--s-2); }
+.plan-card.current { border-color: var(--c-primary); box-shadow: 0 0 0 1px var(--c-primary); }
+.plan-card h3 { margin: 0; }
+.plan-price { margin: 0; font-size: 24px; font-weight: 800; color: #14213D; }
+.plan-price span { font-size: var(--fs-sm); font-weight: 400; color: var(--c-muted); }
+.plan-card ul { margin: 0; padding-left: 18px; font-size: var(--fs-sm); color: var(--c-muted); flex: 1; }
+.trial-bar + .shell { height: calc(100vh - 31px); }

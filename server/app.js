@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
-import { one, all, run, now, tx, getSetting, setSetting, createPipeline, createBrandPipeline, uploadDir, accountDir, inAccount, accountIds, accountId } from './db.js';
+import { one, all, run, now, tx, getSetting, setSetting, createPipeline, createBrandPipeline, uploadDir, accountDir, inAccount, accountIds, accountId, createAccount } from './db.js';
 import { hashPassword, checkPassword, createSession, cookieFor, loadUser, sessionOf, scope, can } from './auth.js';
 import { mountMigrate } from './migrate.js';
 import { subscribe, emit } from './bus.js';
@@ -17,6 +17,7 @@ import { flowOnHuman, flowOnStage, validateGraph, simulate, portsOf } from './fl
 import { claude, DEFAULT_MODEL, translateOut, translateIn } from './ai.js';
 import { transcribeMessage, groqKey } from './transcribe.js';
 import { perfil } from './perfil.js';
+import { PLANS, TRIAL_DAYS, signupOpen, canUse, limits, billingInfo, startTrial, checkout, syncSubscription } from './billing.js';
 import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES, markReadWeb } from './waweb.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -102,6 +103,45 @@ app.post('/api/login', (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- cadastro pelo site (Fechaê): a empresa nasce no teste grátis e o administrador já entra.
+// Só funciona com CADASTRO_ABERTO=1 no servidor (para não abrir antes da hora).
+app.get('/api/plans', (req, res) => res.json({ open: signupOpen(), trial_days: TRIAL_DAYS, plans: Object.entries(PLANS).map(([key, p]) => ({ key, ...p })) }));
+const signups = new Map(); // ip -> { n, until }
+app.post('/api/signup', (req, res) => {
+  if (!signupOpen()) throw httpError(403, 'O cadastro ainda não está aberto');
+  const s = signups.get(req.ip);
+  if (s && s.n >= 5 && s.until > now()) throw httpError(429, 'Muitos cadastros seguidos. Tente mais tarde.');
+  const b = req.body || {};
+  const company = String(b.company || '').trim().slice(0, 80), name = String(b.name || '').trim().slice(0, 80);
+  const email = String(b.email || '').trim().toLowerCase(), password = String(b.password || ''), phone = String(b.phone || '').replace(/\D/g, '').slice(0, 15);
+  if (!company || !name) throw httpError(400, 'Preencha o nome da empresa e o seu nome');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw httpError(400, 'E-mail inválido');
+  if (password.length < 8) throw httpError(400, 'A senha precisa ter pelo menos 8 caracteres');
+  if (!b.terms) throw httpError(400, 'É preciso aceitar os termos de uso');
+  if (accountOfEmail(email)) throw httpError(409, 'Este e-mail já tem conta. Use "Entrar".');
+  signups.set(req.ip, { n: (s && s.until > now() ? s.n : 0) + 1, until: now() + 3600e3 });
+  const acc = createAccount(company);
+  startTrial(acc, { plan: b.plan, email, phone });
+  const cookie = inAccount(acc, () => {
+    const id = Number(run("insert into users(name, email, pass_hash, role_id, is_admin, created_at) values(?, ?, ?, (select id from roles where name = 'Gerente'), 1, ?)",
+      name, email, hashPassword(password), now()).lastInsertRowid);
+    return createSession(id);
+  });
+  console.log(`cadastro: empresa ${acc} criada pelo site (plano ${b.plan || 'essencial'}, teste de ${TRIAL_DAYS} dias)`);
+  res.setHeader('Set-Cookie', cookieFor(cookie));
+  res.json({ ok: true });
+});
+
+// Aviso do Mercado Pago sobre assinatura: confere na API dele e atualiza a empresa.
+app.post('/webhooks/mercadopago', express.json({ limit: '1mb' }), async (req, res) => {
+  res.sendStatus(200);
+  const id = req.body?.data?.id || req.query['data.id'] || req.query.id;
+  const type = req.body?.type || req.query.type || req.query.topic || '';
+  if (!id || !/preapproval/.test(type)) return;
+  try { const r = await syncSubscription(String(id)); if (r) console.log(`assinatura: empresa ${r.id} agora ${r.status}`); }
+  catch (e) { console.error('assinatura: aviso do Mercado Pago', e.message); }
+});
+
 // ---------- link "sair da lista" dos e-mails de campanha (público, sem login)
 // Link "c<empresa>-<código>"; sem o prefixo é da empresa nº 1 (links já enviados pela AgroVox).
 function unsubscribe(link) {
@@ -137,6 +177,8 @@ app.use('/api', (req, res, next) => {
     req.user = loadUser(req);
     if (!req.user) return res.status(401).json({ error: 'Faça login' });
     req.account = acc;
+    // Teste acabou (ou assinatura cancelada): só dá para ver o plano e pagar.
+    if (!canUse(acc) && !/^\/(me|billing|logout|stream)(\/|$)/.test(req.path)) return res.status(402).json({ error: 'Seu período grátis acabou. Escolha um plano em Ajustes › Plano para continuar.', billing: true });
     // Marca escolhida na setinha do menu (ex.: AgroVox, AgroPool). Vem em todo pedido da tela.
     const b = Number(req.get('x-brand')) || 1;
     req.brand = one('select id from brands where id = ?', b) ? b : 1;
@@ -198,6 +240,13 @@ app.put('/api/quick-replies', (req, res) => {
   res.json(clean);
 });
 
+// ---------- plano e pagamento (administrador da empresa)
+app.post('/api/billing/checkout', async (req, res) => {
+  admin(req);
+  const base = `${req.protocol}://${req.get('host')}`;
+  res.json({ url: await checkout(req.account, { plan: req.body?.plan, payerEmail: req.user.email, backUrl: `${base}/#/settings/plano` }) });
+});
+
 app.get('/api/me', (req, res) => {
   const u = req.user;
   const meta = getSetting('meta', {});
@@ -206,6 +255,7 @@ app.get('/api/me', (req, res) => {
     general: { ...getSetting('general', {}), company: one('select name from brands where id = ?', req.brand).name },
     brand: req.brand,
     brands: all('select id, name from brands order by id'),
+    billing: billingInfo(req.account),
     meta: u.is_admin ? { graph_version: meta.graph_version, verify_token: meta.verify_token, has_app_secret: !!meta.app_secret } : null,
     email: u.is_admin ? (({ api_key, ...e }) => ({ ...e, has_key: !!api_key }))(getSetting(brandKey('email', req.brand), {})) : null,
     ai: u.is_admin ? (({ api_key, groq_key, ...e }) => ({ model: DEFAULT_MODEL, ...e, has_key: !!api_key, has_groq: !!groq_key }))(getSetting(brandKey('ai', req.brand), {})) : null,
@@ -256,6 +306,7 @@ app.post('/api/users', (req, res) => {
   const { name, email, password, role_id, is_admin } = req.body || {};
   if (!name || !email || !password || password.length < 8) throw httpError(400, 'Nome, email e senha (mín. 8) são obrigatórios');
   if (one('select 1 from users where email = ?', email.trim()) || accountOfEmail(email, req.account)) throw httpError(409, 'Já existe um usuário com esse email');
+  if (one('select count(*) n from users where is_active = 1').n >= limits(req.account).users) throw httpError(402, `Seu plano permite ${limits(req.account).users} usuários. Mude de plano em Ajustes › Plano.`);
   const id = run('insert into users(name, email, pass_hash, role_id, is_admin, created_at) values(?, ?, ?, ?, ?, ?)',
     name.trim(), email.trim(), hashPassword(password), role_id || null, is_admin ? 1 : 0, now()).lastInsertRowid;
   emit('config');
@@ -1130,6 +1181,7 @@ app.post('/api/waweb', async (req, res) => {
     : novo ? null : all("select * from channels where kind = 'whatsapp' and brand_id = ?", req.brand).find(isWeb);
   if (channel_id && (!ch || !isWeb(ch))) throw httpError(404, 'Canal não encontrado');
   if (!ch) {
+    if (all("select config from channels where kind = 'whatsapp' and status != 'disabled'").length >= limits(req.account).whatsapp) throw httpError(402, `Seu plano permite ${limits(req.account).whatsapp} número(s) de WhatsApp. Mude de plano em Ajustes › Plano.`);
     const pid = firstPipelineOf(req.brand);
     const id = Number(run("insert into channels(kind, name, external_id, config, created_at, brand_id) values('whatsapp', ?, ?, ?, ?, ?)",
       String(name || '').trim().slice(0, 60) || 'WhatsApp Web', `web-${now()}-${Math.random().toString(36).slice(2, 6)}`, JSON.stringify({ mode: 'web', pipeline_id: pid }), now(), req.brand).lastInsertRowid);

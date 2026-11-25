@@ -154,3 +154,51 @@ test('empresa nova nasce neutra: sem tabelas, fluxos, respostas ou nomes da Agro
   // o banco que já existia (AgroVox) continua com o perfil dela
   assert.equal(db.inAccount(A, () => db.getSetting('perfil', 'padrao')), 'padrao'); // A aqui é instalação nova de teste
 });
+
+test('cadastro pelo site: fechado por padrão; aberto cria a empresa no teste grátis', async () => {
+  const f = { company: 'Padaria Sol', name: 'Rui', email: 'rui@padaria.com', password: 'senha-forte-1', plan: 'profissional', terms: true };
+  assert.equal((await call('rui', 'POST', '/api/signup', f)).status, 403);
+  process.env.CADASTRO_ABERTO = '1';
+  try {
+    assert.equal((await call('rui', 'POST', '/api/signup', { ...f, terms: false })).status, 400);
+    assert.equal((await call('rui', 'POST', '/api/signup', { ...f, email: 'ana@empresa-a.com' })).status, 409);
+    assert.equal((await call('rui', 'POST', '/api/signup', f)).status, 200);
+    const me = (await call('rui', 'GET', '/api/me')).body;
+    assert.equal(me.general.company, 'Padaria Sol');
+    assert.equal(me.billing.status, 'teste');
+    assert.equal(me.billing.trial_days_left, 7);
+    assert.deepEqual(me.quick_replies, []);
+    // limite do plano: Profissional = 5 usuários
+    for (let i = 1; i <= 4; i++) assert.equal((await call('rui', 'POST', '/api/users', { name: `U${i}`, email: `u${i}@padaria.com`, password: 'senha-forte-1' })).status, 200);
+    assert.equal((await call('rui', 'POST', '/api/users', { name: 'U5', email: 'u5@padaria.com', password: 'senha-forte-1' })).status, 402);
+    // teste acabou: só a tela do plano funciona; os dados ficam
+    const { platform, accountIds } = db;
+    const acc = accountIds().at(-1);
+    platform.prepare('update accounts set trial_until = ? where id = ?').run(Date.now() - 1000, acc);
+    assert.equal((await call('rui', 'GET', '/api/leads')).status, 402);
+    const me2 = (await call('rui', 'GET', '/api/me')).body;
+    assert.equal(me2.billing.blocked, true);
+    // AgroVox (interna) nunca é bloqueada
+    assert.equal((await call('a', 'GET', '/api/leads')).status, 200);
+    assert.equal((await call('a', 'GET', '/api/me')).body.billing.plan, 'interno');
+  } finally { delete process.env.CADASTRO_ABERTO; }
+});
+
+test('aviso do Mercado Pago ativa a assinatura só depois de conferir na API dele', async () => {
+  const { syncSubscription } = await import('../server/billing.js');
+  const acc = db.accountIds().at(-1);
+  process.env.MP_ACCESS_TOKEN = 'TEST-token';
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, init) => String(url).startsWith('https://api.mercadopago.com/preapproval/')
+    ? new Response(JSON.stringify({ id: 'PRE1', status: 'authorized', external_reference: `${acc}:empresa` }), { status: 200 })
+    : real(url, init);
+  try {
+    const r = await fetch(`${base}/webhooks/mercadopago`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'subscription_preapproval', data: { id: 'PRE1' } }) });
+    assert.equal(r.status, 200);
+    await new Promise((res) => setTimeout(res, 100));
+    const row = db.platform.prepare('select plan, status from accounts where id = ?').get(acc);
+    assert.deepEqual({ ...row }, { plan: 'empresa', status: 'ativo' });
+    assert.equal((await call('rui', 'GET', '/api/leads')).status, 200); // voltou a usar
+    assert.equal(await syncSubscription('PRE1').then((x) => x.status), 'ativo');
+  } finally { globalThis.fetch = real; delete process.env.MP_ACCESS_TOKEN; }
+});
