@@ -1386,3 +1386,48 @@ test('filtro rápido das conversas por número: Brasil, espanhol, e-mail', async
   assert.ok(br.length >= 1 && br.every((c) => c.channel_name !== 'Paraguai' && c.channel !== 'email'));
   assert.deepEqual((await call('admin', 'GET', '/api/conversations?via=en')).body, []); // ainda sem número dos EUA
 });
+
+test('respostas prontas com a tabela do número e "Traduzir para português" na mensagem do cliente', async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const ch = (await call('admin', 'POST', '/api/waweb', { novo: true, name: 'Paraguai (tabelas)' })).body;
+  await wait(20);
+  waFake.client.emit('ready');
+  const cli = waFake.client;
+  await call('admin', 'POST', `/api/waweb/${ch.id}/options`, { translate_to: 'es' });
+  cli.emit('message', { from: '595976000999@c.us', to: '556793300144@c.us', body: 'Hola, tengo una StarFire 6000', type: 'chat', id: { _serialized: 'py-tab-1' },
+    timestamp: Math.floor(Date.now() / 1000), fromMe: false, hasMedia: false, getContact: async () => ({ number: '595976000999', pushname: 'Pedro' }) });
+  await wait(30); await flush();
+  const conv = one('select * from conversations where channel_id = ? order by id desc limit 1', ch.id);
+  const msg = one("select * from messages where external_id = 'py-tab-1'");
+
+  // tabelas: as do fluxo ligado daquele número (em dólar) passam na frente das do fluxo geral
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 9, 9]);
+  const up = async (n) => (await (await fetch(base + '/api/files', { method: 'POST', headers: { 'x-crm': '1', cookie: jar.admin, 'content-type': 'image/png', 'x-filename': n }, body: png })).json()).id;
+  const usd = await up('starfire-6000-usd.png');
+  const graph = (items) => JSON.stringify({ nodes: [{ id: 's', type: 'start', data: {} }, { id: 'ia', type: 'ai_agent', data: { items, max_turns: 6, timeout_hours: 1 } }], edges: [] });
+  const fid = Number(run("insert into flows(name, trigger, trigger_config, active, graph, created_at, updated_at) values('PY tabelas', 'ad_click', ?, 1, ?, 0, 0)",
+    JSON.stringify({ channel_id: ch.id }), graph([{ name: 'StarFire 6000 (USD)', file_id: usd }])).lastInsertRowid);
+  const tables = (await call('admin', 'GET', `/api/conversations/${conv.id}/tables`)).body;
+  assert.deepEqual(tables, [{ name: 'StarFire 6000 (USD)', file_id: usd }]);
+  run('update flows set active = 0 where id = ?', fid);
+
+  // mandar a tabela (imagem já salva), sem subir de novo; sem texto não chama a IA
+  const calls = anthropic.length;
+  const r = await call('admin', 'POST', `/api/conversations/${conv.id}/messages`, { text: '', file_id: usd });
+  assert.equal(r.status, 200);
+  assert.deepEqual([r.body.kind, r.body.file_id], ['image', usd]);
+  assert.equal(cli.sent.at(-1).content.mime, 'image/png');
+  assert.equal(anthropic.length, calls);
+  assert.equal((await call('admin', 'POST', `/api/conversations/${conv.id}/messages`, { text: 'x', file_id: 999999 })).status, 404);
+
+  // traduzir a mensagem do cliente para português (uma vez só; a segunda vem guardada)
+  aiAnswers = ['Olá, tenho uma StarFire 6000'];
+  const t = await call('admin', 'POST', `/api/messages/${msg.id}/translate`);
+  assert.equal(t.body.text, 'Olá, tenho uma StarFire 6000');
+  assert.match(anthropic.at(-1).body.system, /português do Brasil/);
+  const n = anthropic.length;
+  assert.equal((await call('admin', 'POST', `/api/messages/${msg.id}/translate`)).body.text, 'Olá, tenho uma StarFire 6000');
+  assert.equal(anthropic.length, n);
+  assert.equal((await call('admin', 'GET', `/api/conversations/${conv.id}`)).body.messages.find((m) => m.id === msg.id).translated_body, 'Olá, tenho uma StarFire 6000');
+  await call('admin', 'POST', `/api/waweb/${ch.id}/options`, { translate_to: '' });
+});

@@ -14,7 +14,7 @@ import { audienceCount, campaignStats, startCampaign, pauseCampaign } from './ca
 import { dashboard } from './dashboard.js';
 import { results, readInvestment } from './results.js';
 import { flowOnHuman, flowOnStage, validateGraph, simulate, portsOf } from './flows.js';
-import { claude, DEFAULT_MODEL, translateOut } from './ai.js';
+import { claude, DEFAULT_MODEL, translateOut, translateIn } from './ai.js';
 import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES } from './waweb.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -458,7 +458,7 @@ function feedFor(entity, id, convIds = []) {
     ...all('select e.*, \'event\' t from events e where entity = ? and entity_id = ?', entity, id).map((e) => ({ ...e, data: JSON.parse(e.data) })),
   ];
   if (convIds.length) {
-    items.push(...all(`select m.*, 'message' t, ch.kind channel, f.name file_name, f.mime file_mime from messages m join conversations cv on cv.id = m.conversation_id
+    items.push(...all(`select m.*, 'message' t, ch.kind channel, cv.channel_id, f.name file_name, f.mime file_mime from messages m join conversations cv on cv.id = m.conversation_id
       join channels ch on ch.id = cv.channel_id left join files f on f.id = m.file_id where m.conversation_id in (${convIds.map(Number).join(',')}) order by m.created_at desc limit 300`));
   }
   return items.sort((a, b) => a.created_at - b.created_at || a.id - b.id);
@@ -851,6 +851,37 @@ app.get('/api/conversations', (req, res) => {
     where ${where.join(' and ')} order by c.last_message_at desc limit 300`, ...p).map((r) => ({ ...r, last_msg: r.last_msg ? JSON.parse(r.last_msg) : null })));
 });
 
+// Tabelas de preço que os fluxos ligados usam naquele número (as do Paraguai, em dólar, para o canal dele): aparecem nas respostas prontas.
+app.get('/api/conversations/:id/tables', (req, res) => {
+  const c = loadConv(req, Number(req.params.id));
+  const ch = one('select id, kind, brand_id from channels where id = ?', c.channel_id);
+  if (ch.kind !== 'whatsapp') return res.json([]);
+  const flows = all('select graph, trigger_config from flows where active = 1 and brand_id = ? order by id', ch.brand_id)
+    .map((f) => ({ graph: JSON.parse(f.graph), tc: JSON.parse(f.trigger_config || '{}') }));
+  const own = flows.filter((f) => Number(f.tc.channel_id) === ch.id);
+  const pick = own.length ? own : flows.filter((f) => !f.tc.channel_id && (!f.tc.channel || f.tc.channel === ch.kind));
+  const seen = new Map();
+  for (const f of pick) for (const n of f.graph.nodes || []) {
+    if (n.type !== 'ai_agent' && n.type !== 'catalog') continue;
+    for (const it of n.data?.items || []) if (it.file_id && it.name && !seen.has(it.name)) seen.set(it.name, { name: it.name, file_id: it.file_id });
+  }
+  res.json([...seen.values()]);
+});
+
+// Traduz para português uma mensagem que o cliente mandou (clique em "Traduzir"); guarda para não pagar de novo.
+app.post('/api/messages/:id/translate', async (req, res) => {
+  const m = one('select * from messages where id = ?', Number(req.params.id));
+  if (!m) throw httpError(404, 'Mensagem não encontrada');
+  const c = loadConv(req, m.conversation_id);
+  if (m.translated_body) return res.json({ text: m.translated_body });
+  if (!m.body.trim()) throw httpError(400, 'Mensagem sem texto');
+  const brand = one('select brand_id from channels where id = ?', c.channel_id)?.brand_id || 1;
+  let text;
+  try { text = await translateIn(m.body, { brandId: brand }); } catch (e) { throw httpError(e.status === 400 ? 400 : 502, `Não consegui traduzir agora (${e.message}). Tente de novo.`); }
+  run('update messages set translated_body = ? where id = ?', text, m.id);
+  res.json({ text });
+});
+
 function loadConv(req, id) {
   const c = one('select c.*, l.responsible_id from conversations c left join leads l on l.id = c.lead_id where c.id = ?', id);
   if (!c) throw httpError(404, 'Conversa não encontrada');
@@ -875,7 +906,15 @@ app.post('/api/conversations/:id/messages', express.raw({ type: () => true, limi
   const channel = one('select * from channels where id = ?', c.channel_id);
   if (channel.status === 'disabled') throw httpError(400, 'Este canal foi desligado');
   let text = '', file = null;
-  if (req.is('application/json')) text = String(req.body?.text || '').trim(); // já lido pelo express.json
+  if (req.is('application/json')) { // já lido pelo express.json
+    text = String(req.body?.text || '').trim();
+    // Imagem que já está no Semeia (ex.: tabela de preço das respostas prontas): manda sem subir de novo.
+    if (req.body?.file_id) {
+      const f = one('select * from files where id = ?', Number(req.body.file_id));
+      if (!f) throw httpError(404, 'Arquivo não encontrado');
+      file = { id: f.id, buf: fs.readFileSync(path.join(UPLOAD_DIR, f.path)), name: f.name, mime: f.mime };
+    }
+  }
   else {
     const name = decodeURIComponent(req.get('x-filename') || 'arquivo');
     file = { buf: req.body, name, mime: (req.get('content-type') || 'application/octet-stream').split(';')[0] };
@@ -893,7 +932,7 @@ app.post('/api/conversations/:id/messages', express.raw({ type: () => true, limi
       if (t && t !== text) { original = text; text = t; }
     } catch (e) { throw httpError(502, `Não consegui traduzir agora (${e.message}). Tente de novo.`); }
   }
-  const fileId = file ? saveFile(file.buf, file.name, file.mime) : null;
+  const fileId = file ? file.id || saveFile(file.buf, file.name, file.mime) : null;
   const kind = file ? (file.mime.startsWith('image/') ? 'image' : file.mime.startsWith('audio/') ? 'audio' : file.mime.startsWith('video/') ? 'video' : 'document') : 'text';
   const mid = Number(run('insert into messages(conversation_id, direction, user_id, kind, body, original_body, file_id, status, created_at) values(?, ?, ?, ?, ?, ?, ?, ?, ?)',
     c.id, 'out', req.user.id, kind, text, original, fileId, 'pending', now()).lastInsertRowid);

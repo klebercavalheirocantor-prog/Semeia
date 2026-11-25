@@ -47,7 +47,7 @@ function Conversation({ id }) {
         <button class="btn sm" onClick=${() => setLinking(true)}>Juntar a um lead</button>
         <button class="btn danger sm" onClick=${() => act('decline')}>Recusar</button></div>`}
       <div class="feed" id="chat-scroll">
-        ${c.messages.map((m) => html`<${Bubble} key=${m.id} m=${m} />`)}
+        ${c.messages.map((m) => html`<${Bubble} key=${m.id} m=${m} channelId=${c.channel_id} />`)}
         ${!c.messages.length && html`<${Empty} title="Sem mensagens" />`}
       </div>
       <${Composer} key=${id} entity="lead" entityId=${c.lead?.id || 0} conversations=${conversations} onSent=${reload}

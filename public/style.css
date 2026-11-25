@@ -403,3 +403,9 @@ code.copy { background: var(--c-surface-2); border: 1px solid var(--c-border); b
 .quick-menu { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 20; width: min(340px, 85vw); max-height: 320px; overflow: auto; padding: 6px; gap: 2px; box-shadow: 0 6px 24px rgba(0,0,0,.18); }
 .quick-menu .btn { flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; width: 100%; min-width: 0; }
 .quick-menu .btn .ellipsis { max-width: 100%; }
+
+/* tradução de mensagem recebida e tabela anexada pelas respostas prontas */
+.tr-in { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--c-border); }
+.link-btn { display: block; margin-top: 4px; padding: 0; border: 0; background: none; color: var(--c-primary); font: inherit; cursor: pointer; text-align: left; }
+.link-btn:disabled { opacity: .6; cursor: default; }
+.attach-chip { gap: 6px; padding: 4px 8px; margin-bottom: 6px; border: 1px solid var(--c-border); border-radius: var(--r-pill, 999px); background: var(--c-surface); }

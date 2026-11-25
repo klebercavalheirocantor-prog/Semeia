@@ -117,6 +117,16 @@ Responda APENAS com JSON: {"resposta": "texto ou vazio", "tabelas": ["nome exato
   };
 }
 
+// Traduz para português o que o cliente escreveu (espanhol, inglês...), quando o atendente clica em "Traduzir".
+export async function translateIn(text, { brandId = 1 } = {}) {
+  const system = `Você traduz para o português do Brasil mensagens de WhatsApp que clientes de uma empresa de sinais de GPS agrícola escreveram (geralmente em espanhol do Paraguai/Argentina ou em inglês).
+Mantenha o sentido, o tom, os emojis, números, valores, nomes de produtos e modelos (ex.: StarFire 6000, NAV 900, Gen 4) e as quebras de linha.
+Se o texto já estiver em português, devolva igual.
+Responda APENAS com a tradução, sem aspas, sem explicação.`;
+  const out = await claude({ system, messages: [{ role: 'user', content: text }], maxTokens: 1000, brandId });
+  return out.replace(/^["“]|["”]$/g, '').trim() || text;
+}
+
 // Traduz o que o atendente escreveu (em português) para a língua do cliente, antes de mandar.
 // customer: últimas mensagens do cliente (se ele escreve em português, o texto vai como está).
 export async function translateOut(text, { to = 'es', customer = [], brandId = 1 } = {}) {

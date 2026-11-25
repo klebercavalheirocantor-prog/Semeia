@@ -21,8 +21,14 @@ function PhotoView({ src, alt, onClose }) {
   </div>`;
 }
 
-export function Bubble({ m }) {
+export function Bubble({ m, channelId }) {
   const [zoom, setZoom] = useState(false);
+  // Número com tradução (Paraguai/Argentina, EUA): a mensagem do cliente ganha "Traduzir para português".
+  const group = B().channels.find((x) => x.id === (m.channel_id ?? channelId))?.group;
+  const canTr = m.direction === 'in' && m.body && (group === 'es' || group === 'en');
+  const [tr, setTr] = useState(m.translated_body || '');
+  const [trBusy, setTrBusy] = useState(false);
+  const translate = async () => { setTrBusy(true); try { setTr((await post(`/messages/${m.id}/translate`)).text); } catch (e) { fail(e); } setTrBusy(false); };
   const f = m.file_id && `/api/files/${m.file_id}`;
   const mime = m.file_mime || '';
   let media = null;
@@ -36,6 +42,8 @@ export function Bubble({ m }) {
   return html`<div class="bubble ${m.direction} ${m.status === 'failed' ? 'failed' : ''}">
     ${media}${media && m.body ? html`<br />` : ''}${m.body}
     ${m.original_body && html`<div class="small muted" style="margin-top:4px">🌐 traduzido · você escreveu: ${m.original_body}</div>`}
+    ${canTr && tr && html`<div class="small tr-in">🌐 Em português: ${tr}</div>`}
+    ${canTr && !tr && html`<button type="button" class="link-btn small" disabled=${trBusy} onClick=${translate}>${trBusy ? 'Traduzindo…' : '🌐 Traduzir para português'}</button>`}
     <div class="meta">
       ${m.channel && html`<${Channel} kind=${m.channel} />`}
       ${m.kind === 'template' && html`<span>modelo ·</span>`}
@@ -256,19 +264,22 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
   const fileRef = useRef();
   const [markup, setMarkup] = useState(null); // foto escolhida, abrindo para riscar antes de mandar
   const [quickOpen, setQuickOpen] = useState(false);
+  const [attach, setAttach] = useState(null); // tabela (imagem já salva) escolhida nas respostas prontas
+  const [tables, setTables] = useState([]);
   useEffect(() => { if (!conversations.find((c) => c.id === convId)) setConvId(open[0]?.id || conversations[0]?.id); }, [conversations.map((c) => c.id + c.status).join()]);
   const conv = conversations.find((c) => c.id === convId);
   const trTo = B().channels.find((x) => x.id === conv?.channel_id)?.translate_to || '';
   const windowClosed = conv?.channel === 'whatsapp' && (!conv.last_inbound_at || Date.now() - conv.last_inbound_at > 24 * 3600e3);
 
   const send = async () => {
-    if (busy || !text.trim()) return;
+    if (busy || (!text.trim() && !(tab === 'msg' && attach))) return;
     setBusy(true);
     try {
-      if (tab === 'msg') await post(`/conversations/${convId}/messages`, { text });
+      if (tab === 'msg') await post(`/conversations/${convId}/messages`, { text, ...(attach && { file_id: attach.file_id }) });
       else if (tab === 'note') await post('/notes', { entity, entity_id: entityId, body: text });
       else await post('/tasks', { entity, entity_id: entityId, text, ...task });
       setText('');
+      setAttach(null);
       onSent?.();
     } catch (e) { fail(e); }
     setBusy(false);
@@ -293,6 +304,7 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
   };
   // Resposta pronta: entra na caixa de texto (dá para mexer antes de enviar). Número com tradução para espanhol usa a versão em espanhol.
   const quick = B().quick_replies || [];
+  useEffect(() => { setTables([]); setAttach(null); if (conv?.channel === 'whatsapp') api(`/conversations/${convId}/tables`).then(setTables).catch(() => {}); }, [convId]);
   const useQuick = (r) => {
     const t = (trTo === 'es' && r.es) || r.pt || r.es;
     setText((cur) => (cur.trim() ? `${cur.trimEnd()}\n${t}` : t));
@@ -323,21 +335,25 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
       <button class="btn sm" onClick=${() => setTask({ ...task, due_at: endOfDay(3) })}>Em 3 dias</button>
       <${UserSelect} label="Responsável pela tarefa" none=${false} value=${task.responsible_id} onChange=${(v) => setTask({ ...task, responsible_id: v })} />
     </div>`}
+    ${tab === 'msg' && attach && html`<div class="row small attach-chip">🖼 <span class="grow ellipsis">Tabela: <strong>${attach.name}</strong> (o texto abaixo vai como legenda)</span>
+      <button class="btn ghost sm" aria-label="Tirar a tabela" onClick=${() => setAttach(null)}>✕</button></div>`}
     <textarea aria-label=${tab === 'msg' ? 'Mensagem' : tab === 'note' ? 'Nota' : 'Descrição da tarefa'} disabled=${tab === 'msg' && conv?.status === 'closed'}
       placeholder=${tab === 'msg' ? (trTo ? `Escreva em português: vai traduzido para ${trTo === 'es' ? 'espanhol' : 'inglês'} (Ctrl+Enter envia)` : 'Escreva para o cliente… (Ctrl+Enter envia)') : tab === 'note' ? 'Nota interna, o cliente não vê' : 'O que precisa ser feito?'}
       value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(); }}></textarea>
     <div class="row">
       ${tab === 'msg' && html`<input type="file" ref=${fileRef} class="sr-only" id="file-${entityId}" onChange=${(e) => pickFile(e.target.files[0])} />
         <label for="file-${entityId}" class="btn" title="Anexar arquivo" tabindex="0" onKeyDown=${(e) => e.key === 'Enter' && fileRef.current.click()}>📎 Arquivo</label>
-        ${quick.length > 0 && html`<span style="position:relative">
+        ${(quick.length > 0 || tables.length > 0) && html`<span style="position:relative">
           <button class="btn" aria-expanded=${quickOpen} title="Respostas prontas" disabled=${conv?.status === 'closed'} onClick=${() => setQuickOpen(!quickOpen)}>⚡ Prontas</button>
           ${quickOpen && html`<div class="card col quick-menu" role="menu" aria-label="Respostas prontas">
             ${quick.map((r) => html`<button role="menuitem" class="btn ghost" onClick=${() => useQuick(r)} title=${(trTo === 'es' && r.es) || r.pt || r.es}>
               <strong>${r.title}</strong><span class="xs muted ellipsis">${(trTo === 'es' && r.es) || r.pt || r.es}</span></button>`)}
+            ${tables.length > 0 && html`<div class="xs muted" style="padding:6px 8px 2px">Tabelas de preço</div>
+              ${tables.map((t) => html`<button role="menuitem" class="btn ghost" onClick=${() => { setAttach(t); setQuickOpen(false); }}><strong>🖼 ${t.name}</strong></button>`)}`}
             ${B().user.is_admin && html`<a class="xs" href="#/settings/quick" style="padding:4px 8px">Editar respostas prontas</a>`}
           </div>`}</span>`}`}
       <span class="spacer"></span>
-      <button class="btn primary" disabled=${busy || !text.trim() || (tab === 'msg' && conv?.status === 'closed')} onClick=${send}>
+      <button class="btn primary" disabled=${busy || (!text.trim() && !(tab === 'msg' && attach)) || (tab === 'msg' && conv?.status === 'closed')} onClick=${send}>
         ${busy ? 'Enviando…' : tab === 'msg' ? 'Enviar' : tab === 'note' ? 'Salvar nota' : 'Criar tarefa'}</button>
     </div>
   </div>`;
