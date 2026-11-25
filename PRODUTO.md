@@ -66,7 +66,7 @@ então nada muda para a AgroVox.
       conferido na API do MP). Precisa de `MP_ACCESS_TOKEN` no servidor.
 - [x] Termos revisados em 25/11 (`/termos.html`): termos de uso, política de privacidade e acordo de operador (LGPD),
       identificação da KC (Decreto 7.962/2013), atendimento em até 5 dias, desistência em 7 dias na 1ª assinatura,
-      foro Ponta Porã/MS. Falta o advogado conferir.
+      foro Ponta Porã/MS. Aprovados pelo Kleber em 25/11.
 - [x] Cancelar a assinatura pela tela (Ajustes › Plano): para a cobrança no MP e o acesso vai até o fim do mês pago.
 - [x] Registro de acesso (data, hora, IP) por 6 meses+ — Marco Civil art. 15 (`access_log` em plataforma.db).
 - [ ] Transferência internacional (Railway, Anthropic, Groq, Resend nos EUA): adotar as cláusulas-padrão da ANPD
@@ -74,7 +74,7 @@ então nada muda para a AgroVox.
 - [ ] Excluir automaticamente os dados 90 dias depois do cancelamento (hoje é manual).
 - Quem vende: KC Financial Solutions Ltda (CNPJ 62.564.150/0001-85) por enquanto; CNPJ próprio só quando houver vendas (decisão do Kleber, 25/11).
 - Contato nos termos: contato@agro-vox.com (provisório). IA: cada empresa conecta a própria chave da Anthropic/Groq (decisão do Kleber, 25/11).
-- [ ] Antes de abrir o cadastro: token do Mercado Pago, revisão dos termos, domínio fechae.com,
+- [ ] Antes de abrir o cadastro: token do Mercado Pago, domínio fechae.com,
       e-mail de boas-vindas.
 - [ ] Painel do dono da plataforma (ver todas as empresas, plano, quem está devendo).
 
