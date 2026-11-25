@@ -286,3 +286,33 @@ test('assistente: resposta ao cliente é só rascunho; quem envia é a pessoa', 
   const { TOOLS } = await import('../server/assistente.js');
   assert.ok(!TOOLS.some((t) => t.name === 'propor_resposta'));
 });
+
+test('cancelar pela tela: cobrança para no Mercado Pago e o acesso vai até o fim do mês pago; login fica registrado', async () => {
+  const acc = db.accountIds().at(-1); // Padaria Sol, assinante ativa do teste anterior
+  process.env.MP_ACCESS_TOKEN = 'TEST-token';
+  const real = globalThis.fetch;
+  const fim = Date.now() + 20 * 864e5;
+  let put = null;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).startsWith('https://api.mercadopago.com/preapproval/')) {
+      if (init?.method === 'PUT') put = JSON.parse(init.body);
+      return new Response(JSON.stringify({ id: 'PRE1', status: 'cancelled', next_payment_date: new Date(fim).toISOString() }), { status: 200 });
+    }
+    return real(url, init);
+  };
+  try {
+    assert.equal((await call('rui', 'POST', '/api/billing/cancel')).status, 200);
+    assert.deepEqual(put, { status: 'cancelled' });
+    const me = (await call('rui', 'GET', '/api/me')).body;
+    assert.equal(me.billing.status, 'cancelado');
+    assert.equal(me.billing.blocked, false); // ainda dentro do mês pago
+    assert.equal((await call('rui', 'GET', '/api/leads')).status, 200);
+    db.platform.prepare('update accounts set paid_until = ? where id = ?').run(Date.now() - 1000, acc);
+    assert.equal((await call('rui', 'GET', '/api/leads')).status, 402); // mês acabou
+    assert.equal((await call('rui', 'POST', '/api/billing/cancel')).status, 400); // nada mais para cancelar
+  } finally { globalThis.fetch = real; delete process.env.MP_ACCESS_TOKEN; }
+  // Marco Civil: login com data, hora e IP
+  await call('x', 'POST', '/api/login', { email: 'bia@empresa-b.com', password: 'senha-forte-1' });
+  const log = db.platform.prepare("select * from access_log where kind = 'login' and account_id = ? order by at desc").get(B);
+  assert.ok(log && log.ip && log.at > Date.now() - 60e3);
+});

@@ -49,6 +49,7 @@ function Signup({ info, back }) {
     ${err && html`<p class="error-text" role="alert">${err}</p>`}
     <button class="btn primary" disabled=${busy}>${busy ? 'Criando…' : 'Criar conta e começar'}</button>
     <p class="xs muted">Já tem conta? <a href="#/login" onClick=${(e) => { e.preventDefault(); back(); }}>Entrar</a></p>
+    <p class="xs muted">Fechaê é um serviço de KC Financial Solutions Ltda · CNPJ 62.564.150/0001-85 · Ponta Porã/MS · contato@agro-vox.com</p>
   </form></main>`;
 }
 

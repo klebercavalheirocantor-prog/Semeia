@@ -19,7 +19,7 @@ import { transcribeMessage, groqKey } from './transcribe.js';
 import { perfil } from './perfil.js';
 import { talk } from './assistente.js';
 import { mountMcp, newLink, revokeLink, linkInfo } from './mcp.js';
-import { PLANS, TRIAL_DAYS, signupOpen, canUse, limits, billingInfo, startTrial, checkout, syncSubscription } from './billing.js';
+import { PLANS, TRIAL_DAYS, signupOpen, canUse, limits, billingInfo, startTrial, checkout, syncSubscription, cancel, logAccess } from './billing.js';
 import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES, markReadWeb } from './waweb.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -102,6 +102,7 @@ app.post('/api/login', (req, res) => {
   }
   fails.delete(ip);
   res.setHeader('Set-Cookie', cookieFor(inAccount(acc, () => createSession(u.id))));
+  logAccess({ account: acc, user: u.id, ip, kind: 'login' });
   res.json({ ok: true });
 });
 
@@ -129,6 +130,7 @@ app.post('/api/signup', (req, res) => {
       name, email, hashPassword(password), now()).lastInsertRowid);
     return createSession(id);
   });
+  logAccess({ account: acc, ip: req.ip, kind: 'cadastro' });
   console.log(`cadastro: empresa ${acc} criada pelo site (plano ${b.plan || 'essencial'}, teste de ${TRIAL_DAYS} dias)`);
   res.setHeader('Set-Cookie', cookieFor(cookie));
   res.json({ ok: true });
@@ -262,6 +264,10 @@ app.post('/api/mcp-link', (req, res) => res.json({ url: `${req.protocol}://${req
 app.delete('/api/mcp-link', (req, res) => { revokeLink(req.user.id); res.json({ ok: true }); });
 
 // ---------- plano e pagamento (administrador da empresa)
+app.post('/api/billing/cancel', async (req, res) => {
+  admin(req);
+  res.json({ until: await cancel(req.account) });
+});
 app.post('/api/billing/checkout', async (req, res) => {
   admin(req);
   const base = `${req.protocol}://${req.get('host')}`;

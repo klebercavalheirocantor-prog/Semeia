@@ -7,11 +7,16 @@ export function Plano() {
   const bi = B().billing || {};
   const [busy, setBusy] = useState('');
   const brl = (c) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const cancelar = () => {
+    if (!confirm('Cancelar a assinatura? A cobrança para e você continua usando até o fim do mês já pago.')) return;
+    setBusy('cancel'); post('/billing/cancel').then(async () => { toast('Assinatura cancelada'); await loadBoot(); setBusy(''); }).catch((e) => { setBusy(''); fail(e); });
+  };
   const pay = (plan) => { setBusy(plan); post('/billing/checkout', { plan }).then((r) => { location.href = r.url; }).catch((e) => { setBusy(''); fail(e); }); };
   if (bi.plan === 'interno') return html`<section class="card pad form"><h2>Plano</h2><p>Esta empresa usa o Fechaê sem cobrança e sem limites.</p></section>`;
   const status = bi.blocked ? html`<p class="banner danger" role="alert">Seu acesso está pausado. Escolha um plano para voltar a usar; nada foi apagado.</p>`
     : bi.status === 'teste' ? html`<p class="banner info">Teste grátis: ${bi.trial_days_left} ${bi.trial_days_left === 1 ? 'dia restante' : 'dias restantes'} (plano ${bi.plan_name}).</p>`
     : bi.status === 'ativo' ? html`<p class="banner info">Assinatura ativa: plano ${bi.plan_name}. A cobrança é mensal, no cartão, pelo Mercado Pago.</p>`
+    : bi.status === 'cancelado' && !bi.blocked ? html`<p class="banner warn">Assinatura cancelada. Você usa até ${new Date(bi.paid_until).toLocaleDateString('pt-BR')}; depois o acesso pausa (os dados ficam guardados por 90 dias).</p>`
     : html`<p class="banner warn">Assinatura ${bi.status}. Assine de novo para continuar.</p>`;
   return html`<section class="card pad form"><h2>Plano</h2>${status}
     <div class="plans">${(bi.plans || []).map((p) => html`<div class=${`plan-card${p.key === bi.plan ? ' current' : ''}`}>
@@ -19,7 +24,8 @@ export function Plano() {
       <ul><li>${p.users} usuários</li><li>${p.whatsapp} ${p.whatsapp === 1 ? 'número' : 'números'} de WhatsApp</li><li>Atendente com IA (com a sua chave), campanhas e fluxos</li></ul>
       <button class=${`btn${p.key === bi.plan ? ' primary' : ''}`} disabled=${!!busy} onClick=${() => pay(p.key)}>
         ${busy === p.key ? 'Abrindo o pagamento…' : bi.status === 'ativo' && p.key === bi.plan ? 'Plano atual' : 'Assinar'}</button></div>`)}</div>
-    <p class="xs muted">O pagamento abre no Mercado Pago. Você pode cancelar quando quiser.</p></section>`;
+    <p class="xs muted">O pagamento abre no Mercado Pago. Você pode cancelar quando quiser, por aqui mesmo. <a href="/termos.html" target="_blank" rel="noopener">Termos de uso e privacidade</a>.</p>
+    ${bi.status === 'ativo' && html`<div class="row"><button class="btn danger" disabled=${!!busy} onClick=${cancelar}>Cancelar assinatura</button></div>`}</section>`;
 }
 
 function Account() {

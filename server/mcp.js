@@ -5,6 +5,7 @@
 import crypto from 'node:crypto';
 import { inAccount, accountIds, one, run, now, getSetting, setSetting } from './db.js';
 import { TOOLS, runTool, makeApi } from './assistente.js';
+import { logAccess } from './billing.js';
 
 const VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const DAYS = 365;
@@ -38,6 +39,7 @@ export function mountMcp(app, express) {
     const user = acc && accountIds().includes(acc) && inAccount(acc, () => one(
       'select u.id, u.name from sessions s join users u on u.id = s.user_id where s.token = ? and s.expires_at > ? and u.is_active = 1', m[2], now()));
     if (!user) return res.status(401).json(rpcError(req.body?.id, -32001, 'Link do Fechaê inválido ou desligado. Gere um novo em Ajustes › Minha conta.'));
+    if (req.body?.method === 'initialize') logAccess({ account: acc, user: user.id, ip: req.ip, kind: 'conector-claude' });
     const api = makeApi(`http://127.0.0.1:${req.socket.localPort}`, `sid=${acc}.${m[2]}`, 1);
     const ctx = {};
     const one1 = async (msg) => {
