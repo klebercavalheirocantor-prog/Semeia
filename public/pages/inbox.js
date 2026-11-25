@@ -68,7 +68,7 @@ function Conversation({ id }) {
     </aside>
     ${linking && html`<${LinkLeadModal} convId=${id} onClose=${() => { setLinking(false); reload(); }} />`}
     ${askDel && html`<${Confirm} title="Excluir conversa?" danger okLabel="Excluir"
-      text=${`Apaga esta conversa e todas as mensagens dela aqui no Semeia (no celular continua). O contato fica${stage?.kind === 'incoming' ? '; o lead ainda não triado sai do funil' : ' e o lead continua no funil'}. Não dá para desfazer.`}
+      text=${`Apaga esta conversa e todas as mensagens dela aqui no Fechaê (no celular continua). O contato fica${stage?.kind === 'incoming' ? '; o lead ainda não triado sai do funil' : ' e o lead continua no funil'}. Não dá para desfazer.`}
       onClose=${() => setAskDel(false)}
       onOk=${() => del(`/conversations/${id}`).then(() => { toast('Conversa excluída'); go('#/chats'); })} />`}
     ${loss && html`<${LossModal} onClose=${() => setLoss(null)} onOk=${(r) => saveLead({ stage_id: loss, loss_reason_id: r })} />`}`;

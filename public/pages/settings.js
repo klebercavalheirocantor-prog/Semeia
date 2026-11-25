@@ -224,7 +224,7 @@ function WebConnect({ ch }) {
           <option value="">Não traduzir</option><option value="es">Espanhol</option><option value="en">Inglês</option>
         </select></label>
     </div>`}
-    ${ch?.engine === 'wwebjs' && html`<p class="small muted">WhatsApp Web completo: o WhatsApp aceita melhor para disparos, mas pode pedir o QR de novo depois de cada atualização do Semeia.</p>`}
+    ${ch?.engine === 'wwebjs' && html`<p class="small muted">WhatsApp Web completo: o WhatsApp aceita melhor para disparos, mas pode pedir o QR de novo depois de cada atualização do Fechaê.</p>`}
     <div class="row">
       ${s === 'ready' ? html`<button class="btn" disabled=${busy} onClick=${logout}>Desconectar este aparelho</button>`
         : !['qr', 'starting'].includes(s) && html`<button class="btn primary" disabled=${busy} onClick=${connect}>${ch ? 'Conectar de novo' : 'Conectar pelo QR code'}</button>`}

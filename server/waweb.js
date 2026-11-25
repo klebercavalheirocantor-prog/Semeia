@@ -74,8 +74,8 @@ async function alertAdmin(text) {
     const base = (getSetting('general', {}).public_url || '').replace(/\/$/, '');
     if (!to) return;
     const { sendEmail } = await import('./outbound.js');
-    await sendEmail({ to, subject: 'Semeia: o WhatsApp precisa ser conectado de novo', unsubscribe: false,
-      text: `${text}\n\nAbra ${base || 'o Semeia'} › Ajustes › Canais e leia o QR code com o celular (WhatsApp › Aparelhos conectados).` });
+    await sendEmail({ to, subject: 'Fechaê: o WhatsApp precisa ser conectado de novo', unsubscribe: false,
+      text: `${text}\n\nAbra ${base || 'o Fechaê'} › Ajustes › Canais e leia o QR code com o celular (WhatsApp › Aparelhos conectados).` });
   } catch (e) { console.error('whatsapp web: aviso por e-mail não saiu', e.message); }
 }
 function retryLater(channel, why) {
@@ -85,7 +85,7 @@ function retryLater(channel, why) {
     failures.delete(key(channel.id));
     console.error(`whatsapp web: ${why}; 4 falhas seguidas, apago a sessão e gero QR novo`);
     stopWeb(channel.id, { logout: true }).then(() => startWeb(channel)).catch((e) => console.error('whatsapp web', e.message));
-    alertAdmin('O WhatsApp do Semeia não conseguiu reconectar sozinho e pede um QR code novo.');
+    alertAdmin('O WhatsApp do Fechaê não conseguiu reconectar sozinho e pede um QR code novo.');
     return;
   }
   console.error(`whatsapp web: ${why}; tento de novo em ${n} min`);
@@ -135,7 +135,7 @@ export async function startWeb(channel) {
   on('qr', async (qr) => {
     if (!qrLogged) { qrLogged = true; console.log(`whatsapp web: pediu QR (login guardado ao abrir: ${hadSession ? 'sim' : 'não'})`); }
     set({ state: 'qr', qr: await L.toDataURL(qr), qrAt: Date.now() });
-    if (everReady.has(key(channel.id))) { everReady.delete(key(channel.id)); alertAdmin('O WhatsApp do Semeia foi desconectado pelo celular.'); }
+    if (everReady.has(key(channel.id))) { everReady.delete(key(channel.id)); alertAdmin('O WhatsApp do Fechaê foi desconectado pelo celular.'); }
   });
   on('ready', () => {
     console.log(`whatsapp web: conectado (${hadSession ? 'voltou com o login guardado' : 'login novo pelo QR'})`);

@@ -1,8 +1,8 @@
-// Service worker do Semeia (igual ao da AgroPool): deixa o CRM instalável como app no celular
+// Service worker do Fechaê: deixa o CRM instalável como app no celular
 // e, só quando a navegação falha por falta de internet, mostra /offline.html em vez do erro do navegador.
 // Não guarda nenhuma outra página nem dado: com conexão, o app sempre abre a versão mais nova.
-// Quando o Semeia tiver notificações push, elas entram aqui (evento "push").
-const OFFLINE_CACHE = 'semeia-offline-v1';
+// Quando o Fechaê tiver notificações push, elas entram aqui (evento "push").
+const OFFLINE_CACHE = 'fechae-offline-v1';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(OFFLINE_CACHE).then((c) => c.addAll(['/offline.html', '/logo.svg'])).catch(() => {}).then(() => self.skipWaiting()));

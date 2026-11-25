@@ -37,8 +37,8 @@ function Auth({ setup }) {
   };
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   return html`<main class="auth"><form class="card pad form" onSubmit=${submit}>
-    <div class="auth-brand"><img src="/logo.svg" alt="" width="56" height="56" /><div><strong>Semeia</strong><span>CRM do agro</span></div></div>
-    <h1>${setup ? 'Bem-vindo ao Semeia' : 'Entrar'}</h1>
+    <div class="auth-brand"><img src="/logo.svg" alt="" width="56" height="56" /><div><strong aria-label="Fechaê"><span class="wordmark">fecha<span class="wm-e">e<svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></strong><span>CRM que fecha venda</span></div></div>
+    <h1>${setup ? 'Bem-vindo ao Fechaê' : 'Entrar'}</h1>
     ${setup && html`<p class="small muted">Crie a conta do administrador. Depois você convida a equipe.</p>
       <label class="field">Nome da empresa<input value=${f.company} onInput=${set('company')} /></label>
       <label class="field">Seu nome<input required value=${f.name} onInput=${set('name')} /></label>`}
@@ -55,7 +55,7 @@ function Nav({ current }) {
   const item = (key, href, label, badge) => html`<a href=${href} aria-current=${current === key ? 'page' : null}>${ICONS[key]}<span>${label}</span>
     ${badge > 0 && html`<span class="badge" aria-label=${`${badge} não lidas`}>${badge > 99 ? '99+' : badge}</span>`}</a>`;
   return html`<nav class="nav" aria-label="Menu principal">
-    <a class="nav-mark" href="#/dashboard" title="Semeia"><img src="/logo.svg" alt="Semeia" width="34" height="34" /></a>
+    <a class="nav-mark" href="#/dashboard" title="Fechaê"><img src="/logo.svg" alt="Fechaê" width="34" height="34" /></a>
     ${b.brands?.length > 1
       ? html`<label class="brand-pick" title="Trocar de empresa"><span class="sr-only">Empresa</span>
           <select value=${String(b.brand)} onChange=${(e) => switchBrand(Number(e.target.value))}>${b.brands.map((x) => html`<option value=${String(x.id)}>${x.name}</option>`)}</select></label>`
@@ -86,7 +86,7 @@ function App() {
   }, []);
   // Instalável como app (PWA), igual à AgroPool. Só registra em HTTPS ou no próprio computador.
   useEffect(() => { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('/sw.js').catch(() => {}); }, []);
-  useEffect(() => { document.title = boot?.unread ? `(${boot.unread}) Semeia` : 'Semeia'; }, [boot?.unread]);
+  useEffect(() => { document.title = boot?.unread ? `(${boot.unread}) Fechaê` : 'Fechaê'; }, [boot?.unread]);
   if (state === 'loading') return html`<div class="auth muted">Carregando…</div>`;
   if (state !== 'in') return html`<${Auth} setup=${state === 'setup'} />`;
   const [p0, p1, p2] = parts;

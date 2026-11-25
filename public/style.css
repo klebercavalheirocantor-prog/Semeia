@@ -7,9 +7,11 @@
   --c-border-strong: #c9ced8;
   --c-text: #1d2330;
   --c-muted: #667085;
-  --c-primary: #3b5bdb;
-  --c-primary-hover: #2f4ac0;
-  --c-primary-soft: #e8edff;
+  /* Fechaê: laranja da marca (tom mais escuro nos botões, para o texto branco ter contraste) e marinho */
+  --c-brand: #F26A1B;
+  --c-primary: #C2410C;
+  --c-primary-hover: #9A3412;
+  --c-primary-soft: #FFEDE3;
   --c-danger: #d63a3a;
   --c-danger-soft: #fdecec;
   --c-warn: #b7791f;
@@ -19,7 +21,7 @@
   --c-note: #fffbea;
   --c-bubble-in: #ffffff;
   --c-bubble-out: #e3f0ff;
-  --c-nav: #1f2537;
+  --c-nav: #14213D;
   --c-nav-text: #c3c8d6;
   --c-nav-active: #ffffff;
   --c-wa: #1f9d60;
@@ -47,7 +49,7 @@
   --nav-w: 76px;
   --col-w: 272px;
   --side-w: 360px;
-  --focus: 0 0 0 3px rgba(59, 91, 219, .35);
+  --focus: 0 0 0 3px rgba(194, 65, 12, .35);
 }
 
 * { box-sizing: border-box; }
@@ -231,6 +233,9 @@ dialog::backdrop { background: rgba(16, 24, 40, .45); }
 .auth-brand img { border-radius: 14px; }
 .auth-brand strong { display: block; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.1; }
 .auth-brand span { font-size: var(--fs-sm); color: var(--c-muted); }
+.auth-brand .wordmark { font-family: 'Baloo 2', system-ui, sans-serif; font-size: 34px; font-weight: 800; letter-spacing: -1px; color: #14213D; display: inline-flex; align-items: flex-end; line-height: 1; padding-top: 10px; }
+.auth-brand .wm-e { position: relative; color: var(--c-brand); font-size: inherit; }
+.auth-brand .wm-e svg { position: absolute; left: 50%; top: -6px; width: 15px; height: 10px; transform: translateX(-50%); color: var(--c-brand); }
 .auth { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: var(--s-4); }
 .auth .card { width: min(400px, 100%); }
 

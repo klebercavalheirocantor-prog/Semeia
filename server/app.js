@@ -1296,7 +1296,7 @@ app.post('/api/email/test', async (req, res) => {
   if (camp) {
     const me = { name: req.user.name };
     await sendEmail({ to, subject: `[TESTE] ${fillVars(camp.subject, me)}`, text: fillVars(camp.body, me), imageFileId: camp.header_file_id, brandId: camp.brand_id });
-  } else await sendEmail({ to, subject: 'Teste do Semeia', text: 'Se você recebeu este e-mail, o envio de campanhas por e-mail está funcionando.', brandId: req.brand });
+  } else await sendEmail({ to, subject: 'Teste do Fechaê', text: 'Se você recebeu este e-mail, o envio de campanhas por e-mail está funcionando.', brandId: req.brand });
   res.json({ ok: true, to });
 });
 
