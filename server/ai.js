@@ -2,6 +2,7 @@
 // Chamada HTTP direta, sem dependência. Chave e base de conhecimento ficam em Ajustes > Assistente de IA.
 import { getSetting, one } from './db.js';
 import { httpError, brandKey } from './crm.js';
+import { perfil } from './perfil.js';
 
 export const DEFAULT_MODEL = 'claude-haiku-5-5';
 
@@ -82,17 +83,18 @@ Responda APENAS com JSON: {"classe": "nome_da_classe"}`;
 // items: [{ name, keywords }]; sent: nomes das tabelas já mandadas. Devolve { reply, tables, action, reason }.
 export async function aiAgent(history, { items = [], contactName = '', brandId = 1, sent = [] } = {}) {
   const { cfg, persona } = base(brandId);
+  const ag = perfil().agente;
   const tables = items.map((it) => `- ${it.name}${(it.keywords || []).length ? ` (o cliente pode escrever: ${it.keywords.join(', ')})` : ''}`).join('\n');
   const system = `${persona}
-O cliente recebeu nossa mensagem oferecendo sinal de correção para piloto automático (John Deere e Trimble) e está respondendo no WhatsApp.
-Seu objetivo: descobrir o modelo do equipamento dele (principalmente a ANTENA; veja na base de conhecimento o que é antena e o que é monitor) para mandar a TABELA DE PREÇO certa.
+${ag.contexto}
+${ag.objetivo}
 Responda no idioma em que o cliente escreveu (português, espanhol ou inglês; na dúvida, português do Brasil), como uma pessoa no WhatsApp: curto (no máximo 2 frases), simpático, sem parecer robô${contactName ? `; chame pelo primeiro nome (${contactName}) só quando soar natural` : ''}.
 Regras:
 - NUNCA escreva preço, valor, desconto exato, prazo ou condição que não esteja na base de conhecimento. O preço está nas tabelas (imagens): você só escolhe qual mandar.
-- Escolha tabela só quando a conversa deixar claro um modelo (antena ou monitor) que bate com ela; no máximo 2. Com tabela, "resposta" vira a legenda da imagem (ex.: "Segue a tabela da StarFire 6000 😊 Qual plano fica melhor pro senhor?").
-- Perguntou preço/valor sem dizer o modelo: peça o modelo da antena (ou uma foto) de forma natural. Não comece com "Ótimo".
+- ${ag.escolha} Com tabela, "resposta" vira a legenda da imagem (ex.: "${ag.exemploLegenda}").
+- ${ag.semModelo}
 - Disse que passou para outra pessoa (gerente, filho, sócio, operador): agradeça e peça o nome e o WhatsApp dessa pessoa para falar direto.
-- Não tem interesse, não usa piloto, pediu para parar ou é engano: agradeça com educação e use acao "encerrar".
+- ${ag.semInteresse}: agradeça com educação e use acao "encerrar".
 - Mandou foto, áudio ou vídeo ([mídia]), quer fechar/comprar/pagar, pediu para falar com alguém, reclamou, ou o modelo não bate com nenhuma tabela: diga que vai verificar e já retorna, e use acao "humano".
 - Mensagem automática (atendimento automático da empresa dele) ou só "ok"/"obrigado": resposta "" e acao "continuar".
 - Não repita uma pergunta com as mesmas palavras de antes.${sent.length ? `\n- Tabelas que você JÁ mandou nesta conversa (não mande de novo): ${sent.join(', ')}.` : ''}
@@ -118,9 +120,10 @@ Responda APENAS com JSON: {"resposta": "texto ou vazio", "tabelas": ["nome exato
 }
 
 // Traduz para português o que o cliente escreveu (espanhol, inglês...), quando o atendente clica em "Traduzir".
+const modelos = () => (perfil().exemplosModelos ? ` (ex.: ${perfil().exemplosModelos})` : '');
 export async function translateIn(text, { brandId = 1 } = {}) {
-  const system = `Você traduz para o português do Brasil mensagens de WhatsApp que clientes de uma empresa de sinais de GPS agrícola escreveram (geralmente em espanhol do Paraguai/Argentina ou em inglês).
-Mantenha o sentido, o tom, os emojis, números, valores, nomes de produtos e modelos (ex.: StarFire 6000, NAV 900, Gen 4) e as quebras de linha.
+  const system = `Você traduz para o português do Brasil mensagens de WhatsApp que clientes de uma empresa${perfil().ramo ? ` ${perfil().ramo}` : ''} escreveram (geralmente em espanhol ou em inglês).
+Mantenha o sentido, o tom, os emojis, números, valores, nomes de produtos e modelos${modelos()} e as quebras de linha.
 Se o texto já estiver em português, devolva igual.
 Responda APENAS com a tradução, sem aspas, sem explicação.`;
   const out = await claude({ system, messages: [{ role: 'user', content: text }], maxTokens: 1000, brandId });
@@ -133,7 +136,7 @@ export async function translateOut(text, { to = 'es', customer = [], brandId = 1
   const lang = { es: 'espanhol', en: 'inglês' }[to] || to;
   const system = `Você traduz mensagens de WhatsApp que um vendedor brasileiro escreveu em português para o cliente dele.
 Traduza para ${lang}${to === 'es' ? ' natural, como se fala no Paraguai e na Argentina, tratando o cliente por "usted"' : ''}.
-Mantenha o tom, os emojis, números, valores, nomes de produtos e modelos (ex.: StarFire 6000, NAV 900, Gen 4) e as quebras de linha.
+Mantenha o tom, os emojis, números, valores, nomes de produtos e modelos${modelos()} e as quebras de linha.
 Se as últimas mensagens do cliente estiverem em português, devolva o texto original sem mudar nada.
 Se o texto já estiver em ${lang}, devolva igual.
 Responda APENAS com o texto final, sem aspas, sem explicação.

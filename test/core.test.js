@@ -6,10 +6,12 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-test-'));
+const ACC = path.join(process.env.DATA_DIR, 'contas', '1'); // pasta da empresa nº 1
 process.env.AI_REPLY_DELAY = '0'; // nos testes a IA responde sem a pausa de "digitando..."
 const { app } = await import('../server/app.js');
 const { normPhone } = await import('../server/crm.js');
 const { setSetting, getSetting, one, run, all } = await import('../server/db.js');
+setSetting('perfil', 'agrovox'); // estes testes são o Semeia da AgroVox (tabelas, prefixo "Agro Sinal", respostas prontas)
 
 // Finge a Graph API da Meta; o resto passa direto.
 const realFetch = globalThis.fetch;
@@ -863,9 +865,11 @@ test('teste da campanha de e-mail vai para mim com [TESTE], texto e arte', async
   } finally { globalThis.fetch = prev; }
 });
 
-// ---------- duas empresas no mesmo CRM
-test('empresas: funil, campanhas, ajustes de e-mail e "sair da lista" separados; contatos em comum', async () => {
+// ---------- duas marcas na mesma empresa
+test('marcas: funil, campanhas, ajustes de e-mail e "sair da lista" separados; contatos em comum', async () => {
   const B2 = { 'x-brand': '2' };
+  await call('admin', 'PATCH', '/api/settings', { general: { company: 'AgroVox' } });
+  assert.equal((await call('admin', 'POST', '/api/brands', { name: 'AgroPool' })).body.id, 2);
   const me1 = (await call('admin', 'GET', '/api/me')).body;
   const me2 = (await call('admin', 'GET', '/api/me', null, B2)).body;
   assert.deepEqual(me1.brands.map((b) => b.name), ['AgroVox', 'AgroPool']);
@@ -1107,17 +1111,17 @@ test('mudança para a nuvem: o PC entrega banco e arquivos; a nuvem só recebe c
   const ok = { 'x-restore-token': 'codigo-de-teste-1234567890' };
   assert.equal((await realFetch(base + '/restore/upload/..%2F..%2Fx.js', { method: 'POST', headers: ok, body: 'x' })).status, 400);
   assert.equal((await realFetch(base + '/restore/upload/foto-1.png', { method: 'POST', headers: ok, body: 'png' })).status, 200);
-  assert.equal(fs.readFileSync(path.join(process.env.DATA_DIR, 'uploads', 'foto-1.png'), 'utf8'), 'png');
+  assert.equal(fs.readFileSync(path.join(ACC, 'uploads', 'foto-1.png'), 'utf8'), 'png');
   assert.equal((await realFetch(base + '/restore/db', { method: 'POST', headers: ok, body: 'não é banco' })).status, 400);
   assert.equal((await realFetch(base + '/restore/db', { method: 'POST', headers: ok, body: dbBuf })).status, 200);
-  assert.ok(fs.existsSync(path.join(process.env.DATA_DIR, 'crm.db.restore')));
-  fs.rmSync(path.join(process.env.DATA_DIR, 'crm.db.restore'));
+  assert.ok(fs.existsSync(path.join(ACC, 'crm.db.restore')));
+  fs.rmSync(path.join(ACC, 'crm.db.restore'));
   delete process.env.RESTORE_TOKEN;
 });
 
 test('WhatsApp Web: trava do Chrome de outro servidor é apagada antes de abrir', async () => {
   const { cleanStale } = await import('../server/waweb.js');
-  const dir = path.join(process.env.DATA_DIR, 'whatsapp-web', 'session-canal77');
+  const dir = path.join(ACC, 'whatsapp-web', 'session-canal77');
   fs.mkdirSync(dir, { recursive: true });
   fs.symlinkSync('outra-maquina-123', path.join(dir, 'SingletonLock'));
   fs.writeFileSync(path.join(dir, 'Preferences'), '{}');
@@ -1138,7 +1142,7 @@ test('WhatsApp Web: desconectar apaga a sessão guardada mesmo com a página tra
   const ch = one("select id from channels where kind = 'whatsapp' and config like '%\"mode\":\"web\"%'");
   await call('admin', 'POST', '/api/waweb'); // garante o canal ligado
   waFake.client.logout = async () => { throw new Error('página travada'); };
-  const dir = path.join(process.env.DATA_DIR, 'whatsapp-web', `session-canal${ch.id}`);
+  const dir = path.join(ACC, 'whatsapp-web', `session-canal${ch.id}`);
   fs.mkdirSync(path.join(dir, 'Default'), { recursive: true });
   assert.equal((await call('admin', 'POST', `/api/waweb/${ch.id}/logout`)).status, 200);
   assert.ok(!fs.existsSync(dir));
@@ -1166,7 +1170,7 @@ test('WhatsApp Web: ao desligar o CRM fecha o Chrome com calma; travou ao abrir 
 test('WhatsApp Web: marca de "apagar" antiga não apaga o login novo depois de conectar', async () => {
   const { stopAllWeb, cleanStale } = await import('../server/waweb.js');
   const ch = one("select id from channels where kind = 'whatsapp' and config like '%\"mode\":\"web\"%'");
-  const dir = path.join(process.env.DATA_DIR, 'whatsapp-web', `session-canal${ch.id}`);
+  const dir = path.join(ACC, 'whatsapp-web', `session-canal${ch.id}`);
   await call('admin', 'POST', '/api/waweb');
   fs.mkdirSync(path.join(dir, 'Default'), { recursive: true });
   fs.writeFileSync(`${dir}.limpar`, 'antiga'); // sobrou de um desconectar que falhou

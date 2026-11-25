@@ -7,7 +7,8 @@ import path from 'node:path';
 const DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-result-'));
 process.env.DATA_DIR = DIR;
 const { app } = await import('../server/app.js');
-const { run, one } = await import('../server/db.js');
+const { run, one, setSetting } = await import('../server/db.js');
+setSetting('perfil', 'agrovox');
 
 let server, base, cookie;
 const call = async (method, p, body) => {
@@ -32,7 +33,7 @@ test('resultado: lucro, ROAS e ROI por canal com o investimento do arquivo; vend
     fields: { [f['Canal da venda']]: 'Anúncio Facebook Brasil', [f['Custo do produto']]: 50000, [f['Taxa de pagamento']]: 10000 } })).body.id;
   // venda do disparo sem canal escolhido e sem custo: canal vem da origem (manual = disparo)
   await call('POST', '/api/leads', { name: 'Ativação', price_cents: 100000, stage_id: won, contact: { name: 'Atualize João', phone: '67999990002' } });
-  fs.writeFileSync(path.join(DIR, 'investimento.json'), JSON.stringify({ updated_at: '2026-11-20T23:00:00Z', cambio: 5.51,
+  fs.writeFileSync(path.join(DIR, 'contas', '1', 'investimento.json'), JSON.stringify({ updated_at: '2026-11-20T23:00:00Z', cambio: 5.51,
     canais: { 'Anúncio Facebook Brasil': { brl: 1000 }, 'Disparo no WhatsApp': { brl: 100 } }, campanhas: [{ nome: 'Brasil', usd: 181.49, conversas: 70 }] }));
   const r = (await call('GET', '/api/results')).body;
   const fb = r.canais.find((c) => c.nome === 'Anúncio Facebook Brasil');
@@ -52,7 +53,7 @@ test('resultado: lucro, ROAS e ROI por canal com o investimento do arquivo; vend
 });
 
 test('resultado sem arquivo de investimento: ainda responde, com investido zero', async () => {
-  fs.rmSync(path.join(DIR, 'investimento.json'));
+  fs.rmSync(path.join(DIR, 'contas', '1', 'investimento.json'));
   const r = (await call('GET', '/api/results')).body;
   assert.equal(r.investment, null);
   assert.equal(r.total.investido, 0);

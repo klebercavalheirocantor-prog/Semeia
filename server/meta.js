@@ -4,7 +4,7 @@ import { sendWeb, webStatus } from './waweb.js';
 import { sendMail } from './mailbox.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getSetting, run, now, UPLOAD_DIR } from './db.js';
+import { getSetting, run, now, uploadDir } from './db.js';
 
 const graph = (p) => `https://graph.facebook.com/${getSetting('meta', {}).graph_version || 'v23.0'}/${p}`;
 
@@ -76,7 +76,7 @@ async function graphFetch(url, token, init = {}) {
 function saveFile(buf, name, mime) {
   const safe = String(name || 'arquivo').replace(/[^\w.\-]+/g, '_').slice(-80);
   const rel = `${now()}-${crypto.randomBytes(4).toString('hex')}-${safe}`;
-  fs.writeFileSync(path.join(UPLOAD_DIR, rel), buf);
+  fs.writeFileSync(path.join(uploadDir(), rel), buf);
   return Number(run('insert into files(name, mime, size, path, created_at) values(?, ?, ?, ?, ?)', safe, mime || 'application/octet-stream', buf.length, rel, now()).lastInsertRowid);
 }
 export { saveFile };

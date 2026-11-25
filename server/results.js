@@ -3,13 +3,13 @@
 // Custo, taxa, canal e tipo de cada venda vêm dos campos do cartão do lead.
 import fs from 'node:fs';
 import path from 'node:path';
-import { all, one, DATA_DIR } from './db.js';
+import { all, one, accountDir } from './db.js';
+import { semPrefixo } from './perfil.js';
 
 export const CANAIS = ['Anúncio Facebook Brasil', 'Anúncio Facebook EUA', 'Disparo no WhatsApp'];
-const PREFIX = /^(agro\s+sinal|agro\s+revenda\s+sinal|agro|atualize)\s+/i;
 const OFFSET_MS = 3 * 3600e3; // America/Sao_Paulo
 
-export function readInvestment(dir = DATA_DIR) {
+export function readInvestment(dir = accountDir()) {
   try { return JSON.parse(fs.readFileSync(path.join(dir, 'investimento.json'), 'utf8')); } catch { return null; }
 }
 
@@ -31,7 +31,7 @@ export function results({ brandId = 1, investment = readInvestment() } = {}) {
     if (!CANAIS.includes(canal)) canal = src === 'anuncio' ? CANAIS[0] : CANAIS[2];
     return {
       lead_id: l.id, id: fv(l.id, 'ID da venda') || `L${l.id}`, closed_at: l.closed_at, canal, tipo: fv(l.id, 'Tipo de produto') || 'Digital', produto,
-      cliente: clienteDoNome || (contact ? contact.replace(PREFIX, '') : 'AgroVox'),
+      cliente: clienteDoNome || (contact ? semPrefixo(contact) : one('select name from brands where id = ?', brandId)?.name || ''),
       valor: l.price_cents, taxa: typeof taxa === 'number' ? taxa : 0, custo: typeof custo === 'number' ? custo : null,
     };
   });

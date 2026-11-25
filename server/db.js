@@ -1,43 +1,107 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
-export const DATA_DIR = path.resolve(process.env.DATA_DIR || 'data');
-export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// Cada empresa cliente tem o PRÓPRIO banco e a própria pasta (data/contas/<id>/): uma empresa nunca enxerga a outra,
+// porque os dados nem moram no mesmo arquivo. O pedido (ou o trabalho de fundo) diz de qual empresa é com inAccount();
+// one/all/run/tx abaixo usam sempre o banco da empresa da vez.
+// A lista de empresas fica em data/plataforma.db.
+export const DATA_ROOT = path.resolve(process.env.DATA_DIR || 'data');
+const ACCOUNTS_DIR = path.join(DATA_ROOT, 'contas');
+fs.mkdirSync(ACCOUNTS_DIR, { recursive: true });
 
-// Mudança de servidor: um banco trazido do outro computador (crm.db.restore) entra no lugar antes de abrir.
-const DB_FILE = path.join(DATA_DIR, 'crm.db');
-if (fs.existsSync(`${DB_FILE}.restore`)) {
-  if (fs.existsSync(DB_FILE)) fs.renameSync(DB_FILE, `${DB_FILE}.antes-${Date.now()}`);
-  for (const x of ['-wal', '-shm']) fs.rmSync(DB_FILE + x, { force: true });
-  fs.renameSync(`${DB_FILE}.restore`, DB_FILE);
-  console.log('Banco trazido do outro computador colocado no lugar.');
+export const platform = new DatabaseSync(path.join(DATA_ROOT, 'plataforma.db'));
+platform.exec(`pragma journal_mode = wal; pragma busy_timeout = 5000;
+  create table if not exists accounts (id integer primary key, name text not null, active integer not null default 1, created_at integer not null)`);
+
+// Semeia de uma empresa só (o da AgroVox): o banco e os arquivos que já estão na raiz de data/ SÃO a empresa nº 1,
+// do jeito que estão. Nada é movido: a versão antiga continua achando tudo no mesmo lugar, se um dia precisar voltar.
+const LEGACY = fs.existsSync(path.join(DATA_ROOT, 'crm.db')) && !fs.existsSync(path.join(ACCOUNTS_DIR, '1', 'crm.db'));
+const dirOf = (id) => (id === 1 && LEGACY ? DATA_ROOT : path.join(ACCOUNTS_DIR, String(id)));
+if (!platform.prepare('select 1 from accounts limit 1').get()) {
+  platform.prepare('insert into accounts(id, name, created_at) values(1, ?, ?)').run('Minha empresa', Date.now());
 }
 
-export const db = new DatabaseSync(DB_FILE);
-db.exec('pragma journal_mode = wal; pragma foreign_keys = on; pragma busy_timeout = 5000;');
+const als = new AsyncLocalStorage();
+const opened = new Map(); // id -> { id, dir, db, depth }
+function openAccount(id) {
+  id = Number(id);
+  if (opened.has(id)) return opened.get(id);
+  if (!platform.prepare('select 1 from accounts where id = ?').get(id)) throw new Error(`empresa ${id} não existe`);
+  const dir = dirOf(id);
+  fs.mkdirSync(path.join(dir, 'uploads'), { recursive: true });
+  // Mudança de servidor: um banco trazido do outro computador (crm.db.restore) entra no lugar antes de abrir.
+  const file = path.join(dir, 'crm.db');
+  if (fs.existsSync(`${file}.restore`)) {
+    if (fs.existsSync(file)) fs.renameSync(file, `${file}.antes-${Date.now()}`);
+    for (const x of ['-wal', '-shm']) fs.rmSync(file + x, { force: true });
+    fs.renameSync(`${file}.restore`, file);
+    console.log(`Banco trazido do outro computador colocado no lugar (empresa ${id}).`);
+  }
+  const db = new DatabaseSync(file);
+  db.exec('pragma journal_mode = wal; pragma foreign_keys = on; pragma busy_timeout = 5000;');
+  const c = { id, dir, db, depth: 0 };
+  als.run(c, () => { migrate(); seed(); brandPipelines(); });
+  opened.set(id, c);
+  return c;
+}
+
+// Roda fn dentro da empresa id (pedido de tela, webhook, trabalho de fundo).
+export const inAccount = (id, fn) => als.run(openAccount(id), fn);
+// Callback que vai rodar depois (evento do WhatsApp, timer): continua na empresa de agora.
+export const bound = (fn) => AsyncLocalStorage.bind(fn);
+// Sem empresa definida só é aceito quando existe uma única empresa (Semeia de uma empresa só, testes).
+function ctx() {
+  const c = als.getStore();
+  if (c) return c;
+  const ids = accountIds();
+  if (ids.length === 1) return openAccount(ids[0]);
+  throw new Error('Operação sem empresa definida');
+}
+export const accountId = () => ctx().id;
+export const accountDir = () => ctx().dir;
+export const uploadDir = () => path.join(ctx().dir, 'uploads');
+export const currentDb = () => ctx().db;
+export const accountIds = () => platform.prepare('select id from accounts where active = 1 order by id').all().map((a) => a.id);
+// Empresa nova: banco próprio, já com funil e configurações iniciais. Devolve o id.
+export function createAccount(name) {
+  name = String(name).trim();
+  const id = Number(platform.prepare('insert into accounts(name, created_at) values(?, ?)').run(name, Date.now()).lastInsertRowid);
+  inAccount(id, () => {
+    setSetting('general', { ...getSetting('general', {}), company: name });
+    run('update brands set name = ? where id = 1', name);
+  });
+  return id;
+}
+export const accountName = (id) => platform.prepare('select name from accounts where id = ?').get(id)?.name || '';
+// Trabalho de fundo: roda em cada empresa, uma de cada vez. Erro numa empresa não para as outras.
+export async function eachAccount(fn, label = 'trabalho de fundo') {
+  for (const id of accountIds()) {
+    try { await inAccount(id, fn); } catch (e) { console.error(`${label} (empresa ${id})`, e); }
+  }
+}
 
 export const now = () => Date.now();
-export const one = (sql, ...p) => db.prepare(sql).get(...p);
-export const all = (sql, ...p) => db.prepare(sql).all(...p);
-export const run = (sql, ...p) => db.prepare(sql).run(...p);
+export const one = (sql, ...p) => ctx().db.prepare(sql).get(...p);
+export const all = (sql, ...p) => ctx().db.prepare(sql).all(...p);
+export const run = (sql, ...p) => ctx().db.prepare(sql).run(...p);
 
-let depth = 0;
 // Reentrante: chamadas aninhadas viram parte da transação de fora.
 export function tx(fn) {
-  if (depth > 0) return fn();
-  db.exec('begin immediate');
-  depth++;
+  const c = ctx();
+  if (c.depth > 0) return fn();
+  c.db.exec('begin immediate');
+  c.depth++;
   try {
     const r = fn();
-    db.exec('commit');
+    c.db.exec('commit');
     return r;
   } catch (e) {
-    db.exec('rollback');
+    c.db.exec('rollback');
     throw e;
   } finally {
-    depth--;
+    c.depth--;
   }
 }
 
@@ -50,21 +114,21 @@ export function setSetting(key, value) {
 }
 
 function migrate() {
-  db.exec('create table if not exists migrations (name text primary key, at integer not null)');
+  currentDb().exec('create table if not exists migrations (name text primary key, at integer not null)');
   const dir = path.join(import.meta.dirname, 'migrations');
   for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()) {
     if (one('select 1 from migrations where name = ?', f)) continue;
     const sql = fs.readFileSync(path.join(dir, f), 'utf8');
     // "-- fk-off" na 1ª linha: a migração refaz uma tabela referenciada por outras (o SQLite pede as chaves desligadas).
     const fkOff = sql.startsWith('-- fk-off');
-    if (fkOff) db.exec('pragma foreign_keys = off');
+    if (fkOff) currentDb().exec('pragma foreign_keys = off');
     try {
       tx(() => {
-        db.exec(sql);
+        currentDb().exec(sql);
         if (fkOff && all('pragma foreign_key_check').length) throw new Error(`migração ${f} deixou referências quebradas`);
         run('insert into migrations(name, at) values(?, ?)', f, now());
       });
-    } finally { if (fkOff) db.exec('pragma foreign_keys = on'); }
+    } finally { if (fkOff) currentDb().exec('pragma foreign_keys = on'); }
   }
 }
 
@@ -102,21 +166,20 @@ function cryptoRandom() {
   return [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-migrate();
-seed();
 
-// Toda empresa (AgroVox, AgroPool...) precisa de um funil para os leads dela.
-function brandPipelines() {
-  for (const b of all('select * from brands where not exists (select 1 from pipelines p where p.brand_id = brands.id)')) {
-    tx(() => {
-      const pid = createPipeline(`Funil ${b.name}`, [
-        { name: 'Novas conversas', color: '#c1c1c1', kind: 'incoming' },
-        { name: 'Primeiro contato', color: '#99ccff' },
-        { name: 'Proposta enviada', color: '#ffc8c8' },
-        { name: 'Negociação', color: '#d6c1ff' },
-      ]);
-      run('update pipelines set brand_id = ? where id = ?', b.id, pid);
-    });
-  }
+// Toda marca precisa de um funil para os leads dela.
+export function createBrandPipeline(id, name) {
+  return tx(() => {
+    const pid = createPipeline(`Funil ${name}`, [
+      { name: 'Novas conversas', color: '#c1c1c1', kind: 'incoming' },
+      { name: 'Primeiro contato', color: '#99ccff' },
+      { name: 'Proposta enviada', color: '#ffc8c8' },
+      { name: 'Negociação', color: '#d6c1ff' },
+    ]);
+    run('update pipelines set brand_id = ? where id = ?', id, pid);
+    return pid;
+  });
 }
-brandPipelines();
+function brandPipelines() {
+  for (const b of all('select * from brands where not exists (select 1 from pipelines p where p.brand_id = brands.id)')) createBrandPipeline(b.id, b.name);
+}

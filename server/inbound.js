@@ -4,6 +4,7 @@ import { createContact, createLead, findContactByPoint, firstStage, openLeadOf, 
 import { downloadMedia, fetchProfileName } from './meta.js';
 import { onInbound, REPLY_WINDOW_MS } from './campaigns.js';
 import { flowOnInbound } from './flows.js';
+import { perfil } from './perfil.js';
 import { transcribeMessage, groqKey } from './transcribe.js';
 
 const RANK = { pending: 0, sent: 1, delivered: 2, read: 3, failed: 4 };
@@ -116,11 +117,13 @@ export function handleMessage(item) {
 
 // Veio de anúncio (Facebook/Instagram): etiqueta no contato e o anúncio anotado no lead.
 export const AD_TAG = 'Veio do anúncio';
-// Contato novo que veio do anúncio é salvo como "Agro Sinal <nome do perfil>" (sem nome: o telefone).
-export const AD_PREFIX = 'Agro Sinal';
+// Contato novo que veio do anúncio é salvo como "<prefixo do perfil> <nome do perfil>" (ex.: "Agro Sinal Maria";
+// sem nome: o telefone). Empresa sem prefixo no perfil: só o nome.
 export function adContactName(name, phone) {
+  const prefix = perfil().prefixoAnuncio;
   const base = String(name || '').replace(/^Cliente (WhatsApp|Instagram|Messenger)$/, '').trim() || String(phone || '').replace(/@.*/, '');
-  return base.toLowerCase().startsWith(AD_PREFIX.toLowerCase()) ? base : `${AD_PREFIX} ${base}`.trim();
+  if (!prefix) return base;
+  return base.toLowerCase().startsWith(prefix.toLowerCase()) ? base : `${prefix} ${base}`.trim();
 }
 function markAd(res, ad) {
   if (res.created) {

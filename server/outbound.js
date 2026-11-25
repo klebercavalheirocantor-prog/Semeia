@@ -2,17 +2,17 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { one, run, now, tx, getSetting, setSetting, UPLOAD_DIR } from './db.js';
+import { one, run, now, tx, getSetting, setSetting, uploadDir, accountId } from './db.js';
 import { resolveNumber, sendWeb } from './waweb.js';
 import { emit } from './bus.js';
 import { httpError, createLead, firstStage, openLeadOf, firstPipelineOf, brandKey } from './crm.js';
 import { sendTemplate, renderTemplate, templateSupported, templateHeaderMedia } from './meta.js';
+import { perfil, semPrefixo } from './perfil.js';
 
 // ---------- variáveis da mensagem: {{nome}} e {{primeiro_nome}}
-const PREFIXO = /^(agro|atualize)\s+/i;
 const EMPRESA = /\b(ltda|eireli|epp|s\/?a|me|mei|cia|agropecu[aá]ria|agr[ií]cola|fazenda|usina|com[eé]rcio|servi[cç]os|transportes|grupo|holding)\b/i;
 export function firstName(name) {
-  const n = String(name || '').replace(PREFIXO, '').trim();
+  const n = semPrefixo(name);
   if (!n || EMPRESA.test(n) || /\d/.test(n.split(/\s+/)[0])) return '';
   const w = n.split(/\s+/)[0];
   return w.length < 2 ? '' : w[0].toUpperCase() + w.slice(1).toLowerCase();
@@ -21,7 +21,7 @@ export function fillVars(text, contact) {
   const first = firstName(contact.name);
   return String(text || '')
     .replace(/\{\{\s*primeiro_nome\s*\}\}/gi, first)
-    .replace(/\{\{\s*nome\s*\}\}/gi, String(contact.name || '').replace(PREFIXO, '').trim())
+    .replace(/\{\{\s*nome\s*\}\}/gi, semPrefixo(contact.name))
     .replace(/[ \t]+([,!.?])/g, '$1') // "Olá , tudo bem" -> "Olá, tudo bem" quando não há nome
     .replace(/[ \t]{2,}/g, ' ');
 }
@@ -90,7 +90,7 @@ export async function sendWebTo({ channel, contact, phone, text, fileId = null }
   run('update conversations set last_message_at = ? where id = ?', now(), convId);
   let error = null;
   try {
-    const r = await sendWeb(channel, chatId, { text, file: f && { buf: fs.readFileSync(path.join(UPLOAD_DIR, f.path)), name: f.name, mime: f.mime } });
+    const r = await sendWeb(channel, chatId, { text, file: f && { buf: fs.readFileSync(path.join(uploadDir(), f.path)), name: f.name, mime: f.mime } });
     run("update messages set external_id = ?, status = case when status = 'pending' then 'sent' else status end where id = ?", r.id, mid);
     run("update conversations set external_id = ? where id = ? and not exists (select 1 from conversations where channel_id = ? and external_id = ? and status = 'open')",
       r.wa_id, convId, channel.id, r.wa_id);
@@ -132,13 +132,13 @@ function listUnsub(url, replyTo) {
 function inlineFile(f, cid) {
   const row = typeof f === 'number' ? one('select * from files where id = ?', f) : null;
   if (typeof f === 'number' && !row) throw Object.assign(new Error('Uma imagem do e-mail foi apagada: escolha outra'), { fatal: true });
-  const buf = row ? fs.readFileSync(path.join(UPLOAD_DIR, row.path)) : f.buf;
+  const buf = row ? fs.readFileSync(path.join(uploadDir(), row.path)) : f.buf;
   return { content: Buffer.from(buf).toString('base64'), filename: row?.name || f.name, content_type: row?.mime || f.mime, content_id: cid };
 }
 // WhatsApp com DDD vira 55 + DDD + número (o link do wa.me precisa do país)
 const waDigits = (s) => { const d = String(s || '').replace(/\D/g, ''); return d.length === 10 || d.length === 11 ? `55${d}` : d; };
 export const waLink = (cfg) => waDigits(cfg.whatsapp).length >= 12
-  ? `https://wa.me/${waDigits(cfg.whatsapp)}?text=${encodeURIComponent(cfg.whatsapp_text || 'Olá! Vim pelo e-mail e quero saber o valor do sinal.')}` : '';
+  ? `https://wa.me/${waDigits(cfg.whatsapp)}?text=${encodeURIComponent(cfg.whatsapp_text || perfil().textoWhatsappEmail)}` : '';
 const siteUrl = (s) => (!s ? '' : /^https?:\/\//.test(s) ? s : `https://${s}`);
 
 // Assinatura (Ajustes › E-mail): o mascote recortado (PNG) ao lado do "Abraço, Equipe", botão do WhatsApp, Instagram e site clicáveis.
@@ -154,7 +154,7 @@ function signatureHtml(cfg, brandName) {
     + (links ? `<div style="font-size:13px;margin-top:8px">${links}</div>` : '')
     + `</div>`;
   const pic = cfg.sig_image_file_id
-    ? `<td width="120" valign="bottom" style="padding:14px 16px 0 0;width:120px"><img src="cid:assinatura" alt="Satelito, mascote da AgroVox" width="120" style="display:block;width:120px;height:auto;border:0"></td>` : '';
+    ? `<td width="120" valign="bottom" style="padding:14px 16px 0 0;width:120px"><img src="cid:assinatura" alt="${esc(perfil().assinaturaAlt)}" width="120" style="display:block;width:120px;height:auto;border:0"></td>` : '';
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;border-top:3px solid #B5F23D;max-width:460px">`
     + `<tr>${pic}<td valign="middle" style="padding:14px 0 0">${text}</td></tr></table>`;
 }
@@ -167,7 +167,7 @@ export async function sendEmail({ to, subject, text, contactId, imageFileId = nu
   const brandName = one('select name from brands where id = ?', brandId)?.name || '';
   // Endereço temporário (túnel trycloudflare) muda a cada vez que abre: o link morreria. Aí o cliente sai respondendo SAIR.
   const base = (getSetting('general', {}).public_url || '').replace(/\/$/, '').replace(/^.*trycloudflare\.com$/, '');
-  const unsub = unsubscribe && base && contactId ? `${base}/sair/${unsubToken(contactId, brandId)}` : '';
+  const unsub = unsubscribe && base && contactId ? `${base}/sair/${accountId() === 1 ? '' : `c${accountId()}-`}${unsubToken(contactId, brandId)}` : '';
   const attachments = [];
   if (imageFileId) attachments.push(inlineFile(imageFileId, 'arte'));
   images.forEach((f, i) => attachments.push(inlineFile(f, `img${i}`)));

@@ -4,12 +4,17 @@
 // Atenção: automação pelo WhatsApp Web não é oficial; o ritmo das campanhas (intervalo, lotes e pausas) é o que protege o número.
 import fs from 'node:fs';
 import path from 'node:path';
-import { one, all, run, now, DATA_DIR, getSetting, setSetting } from './db.js';
+import { one, all, run, now, accountDir, accountId, inAccount, bound, getSetting, setSetting } from './db.js';
 import { emit } from './bus.js';
 import { handleMessage, handleStatus } from './inbound.js';
 import { findContactByPoint } from './crm.js';
+import { perfil } from './perfil.js';
 
-const sessions = new Map(); // channelId -> { state, qr, me, error, client }
+// Cada empresa tem seus números: a chave é "<empresa>:<canal>" (o canal 3 da empresa A não é o canal 3 da empresa B).
+const sessions = new Map(); // "<empresa>:<canal>" -> { acc, channelId, state, qr, me, error, client }
+const key = (channelId) => `${accountId()}:${channelId}`;
+const sess = (channelId) => sessions.get(key(channelId));
+const waDir = () => path.join(accountDir(), 'whatsapp-web');
 let lib = null; // testes: WhatsApp falso para todos os números
 const libs = {}; // motor -> biblioteca carregada
 let echoDelay = 3000;
@@ -48,7 +53,7 @@ async function loadLib(engine = engineOf(null)) {
 
 // Sessão marcada para apagar (deslogou com o Chrome aberto): apaga agora, com o Chrome ainda fechado.
 export function cleanStale(channelId) {
-  const dir = path.join(DATA_DIR, 'whatsapp-web', `session-canal${channelId}`);
+  const dir = path.join(waDir(), `session-canal${channelId}`);
   // Trava do Chrome deixada por um servidor anterior (na nuvem, cada reinício é outra máquina): sem apagar, o Chrome não abre.
   for (const f of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) { try { fs.rmSync(path.join(dir, f), { force: true }); } catch {} }
   if (!fs.existsSync(`${dir}.limpar`)) return;
@@ -58,12 +63,12 @@ export function cleanStale(channelId) {
 
 // Se cair ou travar ao abrir, tenta de novo sozinho (1, 2 e 3 min). Na 4ª falha seguida a sessão guardada está
 // estragada: apaga, gera QR novo e avisa o administrador por e-mail.
-const failures = new Map(); // channelId -> falhas seguidas
+const failures = new Map(); // "<empresa>:<canal>" -> falhas seguidas
 const everReady = new Set(); // canais que já conectaram desde que o CRM abriu
-let lastAlert = 0;
+const lastAlert = new Map(); // empresa -> hora do último aviso
 async function alertAdmin(text) {
-  if (Date.now() - lastAlert < 3 * 3600e3) return; // no máximo um aviso a cada 3 h
-  lastAlert = Date.now();
+  if (Date.now() - (lastAlert.get(accountId()) || 0) < 3 * 3600e3) return; // no máximo um aviso a cada 3 h por empresa
+  lastAlert.set(accountId(), Date.now());
   try {
     const to = one('select email from users where is_admin = 1 and is_active = 1 order by id limit 1')?.email;
     const base = (getSetting('general', {}).public_url || '').replace(/\/$/, '');
@@ -74,10 +79,10 @@ async function alertAdmin(text) {
   } catch (e) { console.error('whatsapp web: aviso por e-mail não saiu', e.message); }
 }
 function retryLater(channel, why) {
-  const n = (failures.get(channel.id) || 0) + 1;
-  failures.set(channel.id, n);
+  const n = (failures.get(key(channel.id)) || 0) + 1;
+  failures.set(key(channel.id), n);
   if (n > 3) {
-    failures.delete(channel.id);
+    failures.delete(key(channel.id));
     console.error(`whatsapp web: ${why}; 4 falhas seguidas, apago a sessão e gero QR novo`);
     stopWeb(channel.id, { logout: true }).then(() => startWeb(channel)).catch((e) => console.error('whatsapp web', e.message));
     alertAdmin('O WhatsApp do Semeia não conseguiu reconectar sozinho e pede um QR code novo.');
@@ -85,103 +90,105 @@ function retryLater(channel, why) {
   }
   console.error(`whatsapp web: ${why}; tento de novo em ${n} min`);
   setTimeout(() => {
-    const cur = sessions.get(channel.id);
+    const cur = sess(channel.id);
     if (cur && ['error', 'off'].includes(cur.state)) startWeb(channel).catch((e) => console.error('whatsapp web', e.message));
   }, n * 60e3).unref();
 }
 
 export const isWeb = (channel) => { try { return JSON.parse(channel.config).mode === 'web'; } catch { return false; } };
 export function webStatus(channelId) {
-  const s = sessions.get(channelId);
+  const s = sess(channelId);
   // booting: o CRM acabou de abrir e o WhatsApp ainda não ficou pronto nenhuma vez (campanha espera em vez de pausar)
   return s ? { state: s.state, qr: s.qr, me: s.me, error: s.error, booting: !s.wasReady && ['starting', 'qr'].includes(s.state) } : { state: 'off', qr: null, me: null, error: null, booting: true };
 }
 
 export async function startWeb(channel) {
-  const cur = sessions.get(channel.id);
+  const cur = sess(channel.id);
   if (cur && ['starting', 'qr', 'ready'].includes(cur.state)) return webStatus(channel.id);
   let L;
   try { L = await loadLib(engineOf(channel)); } catch (e) {
     console.error('whatsapp web: biblioteca', e.message);
-    sessions.set(channel.id, { state: 'error', qr: null, me: null, error: 'Falta instalar o componente do WhatsApp Web: feche o CRM e abra o iniciar.bat de novo (precisa de internet).' });
+    sessions.set(key(channel.id), { acc: accountId(), channelId: channel.id, state: 'error', qr: null, me: null, error: 'Falta instalar o componente do WhatsApp Web: feche o CRM e abra o iniciar.bat de novo (precisa de internet).' });
     return webStatus(channel.id);
   }
   // Tentativa anterior travada (erro/desconectado): fecha o Chrome dela antes de abrir outro na mesma pasta.
   if (cur?.client) { try { await cur.client.destroy(); } catch {} }
-  const s = { state: 'starting', qr: null, me: null, error: null, client: null };
-  sessions.set(channel.id, s);
+  const s = { acc: accountId(), channelId: channel.id, state: 'starting', qr: null, me: null, error: null, client: null };
+  sessions.set(key(channel.id), s);
   cleanStale(channel.id);
   // Diagnóstico: o login guardado existia ao abrir? (se existia e mesmo assim pediu QR, o WhatsApp recusou a sessão)
-  const hadSession = fs.existsSync(path.join(DATA_DIR, 'whatsapp-web', `session-canal${channel.id}`, 'Default', 'IndexedDB'))
-    || fs.existsSync(path.join(DATA_DIR, 'whatsapp-web', `baileys-canal${channel.id}`, 'creds.json'));
+  const hadSession = fs.existsSync(path.join(waDir(), `session-canal${channel.id}`, 'Default', 'IndexedDB'))
+    || fs.existsSync(path.join(waDir(), `baileys-canal${channel.id}`, 'creds.json'));
   let qrLogged = false;
   const set = (p) => { Object.assign(s, p); emit('waweb', { channel_id: channel.id }); };
   const client = new L.Client({
-    authStrategy: new L.LocalAuth({ clientId: `canal${channel.id}`, dataPath: path.join(DATA_DIR, 'whatsapp-web') }),
+    authStrategy: new L.LocalAuth({ clientId: `canal${channel.id}`, dataPath: waDir() }),
     authTimeoutMs: 120000, // no servidor o WhatsApp pode levar mais de 30 s para abrir (o padrão de 30 s dava "Waiting failed")
     // Na nuvem usa o Chromium do servidor (CHROME_PATH); no PC, o Chrome que o whatsapp-web.js baixa.
     puppeteer: { headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'], ...(process.env.CHROME_PATH && { executablePath: process.env.CHROME_PATH }) },
   });
   s.client = client;
-  client.on('change_state', (st) => console.log('whatsapp web: estado', st));
-  client.on('auth_failure', (m) => console.error('whatsapp web: login guardado recusado', m));
-  client.on('qr', async (qr) => {
+  // Tudo o que o WhatsApp avisar depois (mensagem, QR, caiu...) é tratado dentro da empresa dona do número.
+  const on = (ev, fn) => client.on(ev, bound(fn));
+  on('change_state', (st) => console.log('whatsapp web: estado', st));
+  on('auth_failure', (m) => console.error('whatsapp web: login guardado recusado', m));
+  on('qr', async (qr) => {
     if (!qrLogged) { qrLogged = true; console.log(`whatsapp web: pediu QR (login guardado ao abrir: ${hadSession ? 'sim' : 'não'})`); }
     set({ state: 'qr', qr: await L.toDataURL(qr), qrAt: Date.now() });
-    if (everReady.has(channel.id)) { everReady.delete(channel.id); alertAdmin('O WhatsApp do Semeia foi desconectado pelo celular.'); }
+    if (everReady.has(key(channel.id))) { everReady.delete(key(channel.id)); alertAdmin('O WhatsApp do Semeia foi desconectado pelo celular.'); }
   });
-  client.on('ready', () => {
+  on('ready', () => {
     console.log(`whatsapp web: conectado (${hadSession ? 'voltou com o login guardado' : 'login novo pelo QR'})`);
     const me = client.info?.wid?.user || null;
     set({ state: 'ready', qr: null, me, error: null, wasReady: true });
-    failures.delete(channel.id); everReady.add(channel.id);
+    failures.delete(key(channel.id)); everReady.add(key(channel.id));
     // Conectou: a sessão desta pasta é boa. Marca de "apagar" antiga não pode apagar o login novo no próximo reinício.
-    fs.rmSync(path.join(DATA_DIR, 'whatsapp-web', `session-canal${channel.id}.limpar`), { force: true });
+    fs.rmSync(path.join(waDir(), `session-canal${channel.id}.limpar`), { force: true });
     const cfg = JSON.parse(one('select config from channels where id = ?', channel.id).config);
     run("update channels set config = ?, status = case when status = 'error' then 'active' else status end where id = ?", JSON.stringify({ ...cfg, me }), channel.id);
     emit('config');
     catchUp(channel.id, client).catch((e) => console.error('whatsapp web: mensagens enquanto estava fechado', e.message));
   });
-  client.on('auth_failure', (m) => set({ state: 'error', error: `Não conseguiu entrar: ${m}` }));
+  on('auth_failure', (m) => set({ state: 'error', error: `Não conseguiu entrar: ${m}` }));
   // LOGOUT: o celular desconectou (ou a sessão guardada era velha). A biblioteca já gera um QR novo sozinha.
-  client.on('disconnected', (reason) => {
-    if (sessions.get(channel.id) !== s) return; // tentativa antiga, já substituída
+  on('disconnected', (reason) => {
+    if (sess(channel.id) !== s) return; // tentativa antiga, já substituída
     if (reason === 'LOGOUT') return set({ state: 'starting', qr: null, error: null });
     set({ state: 'off', qr: null, error: reason ? `Desconectado (${reason})` : 'Desconectado' });
     retryLater(channel, `caiu (${reason || 'sem motivo'})`);
   });
-  client.on('message', (msg) => onIncoming(channel.id, msg, { noFlow: !!msg._noFlow }).catch((e) => console.error('whatsapp web: mensagem', e)));
+  on('message', (msg) => onIncoming(channel.id, msg, { noFlow: !!msg._noFlow }).catch((e) => console.error('whatsapp web: mensagem', e)));
   // Mensagens que você manda pelo celular: aparecem no CRM e fazem o robô sair da conversa.
-  client.on('message_create', (msg) => { if (msg.fromMe) setTimeout(() => onOwn(channel.id, msg).catch((e) => console.error('whatsapp web: eco', e)), echoDelay); });
+  on('message_create', (msg) => { if (msg.fromMe) setTimeout(() => onOwn(channel.id, msg).catch((e) => console.error('whatsapp web: eco', e)), echoDelay); });
   // Leu no celular -> lida no CRM.
-  client.on('chat_read', (chat) => onChatRead(channel.id, chat).catch((e) => console.error('whatsapp web: lida no celular', e.message)));
-  client.on('unread_count', (chat) => { if (chat?.unreadCount === 0) onChatRead(channel.id, chat.id?._serialized).catch(() => {}); }); // whatsapp-web.js
-  client.on('message_ack', (msg, ack) => {
+  on('chat_read', (chat) => onChatRead(channel.id, chat).catch((e) => console.error('whatsapp web: lida no celular', e.message)));
+  on('unread_count', (chat) => { if (chat?.unreadCount === 0) onChatRead(channel.id, chat.id?._serialized).catch(() => {}); }); // whatsapp-web.js
+  on('message_ack', (msg, ack) => {
     const status = ack === -1 ? 'failed' : { 1: 'sent', 2: 'delivered', 3: 'read', 4: 'read' }[ack];
     if (status) handleStatus({ external_id: msg.id?._serialized, status, error: null });
   });
-  client.initialize().catch((e) => {
-    if (sessions.get(channel.id) !== s) return;
+  client.initialize().catch(bound((e) => {
+    if (sess(channel.id) !== s) return;
     const why = e?.message || (typeof e === 'string' ? e : '') || (() => { try { return JSON.stringify(e); } catch { return String(e); } })() || 'erro sem descrição';
     console.error('whatsapp web: falha ao abrir', e?.stack || why);
     set({ state: 'error', error: why });
     retryLater(channel, `não abriu (${why})`);
-  });
+  }));
   return webStatus(channel.id);
 }
 
 export async function stopWeb(channelId, { logout = false } = {}) {
-  const s = sessions.get(channelId);
+  const k = key(channelId), s = sessions.get(k);
   if (!s?.client) return;
   try { if (logout) await s.client.logout(); } catch {}
   try { await s.client.destroy(); } catch {}
-  sessions.delete(channelId);
+  sessions.delete(k);
   // Desconectar = começar do zero: com a página travada o logout da biblioteca não apaga a sessão, então apaga aqui (Chrome já fechado).
   if (logout) {
-    const dir = path.join(DATA_DIR, 'whatsapp-web', `session-canal${channelId}`);
+    const dir = path.join(waDir(), `session-canal${channelId}`);
     try {
       fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 }); fs.rmSync(`${dir}.limpar`, { force: true });
-      fs.rmSync(path.join(DATA_DIR, 'whatsapp-web', `baileys-canal${channelId}`), { recursive: true, force: true });
+      fs.rmSync(path.join(waDir(), `baileys-canal${channelId}`), { recursive: true, force: true });
     }
     catch (e) { console.error('whatsapp web: não deu para apagar a sessão', e.message); }
   }
@@ -191,7 +198,7 @@ export async function stopWeb(channelId, { logout = false } = {}) {
 // QR parado: o WhatsApp para de renovar o código depois de alguns minutos e o celular não consegue ler o vencido.
 // Quando alguém está olhando a tela (ela consulta o status), começa de novo do zero e aparece um QR novo.
 export function refreshStaleQr(channelId, maxAgeMs = 60e3) {
-  const s = sessions.get(channelId);
+  const s = sess(channelId);
   if (!s || s.state !== 'qr' || s.refreshing || Date.now() - (s.qrAt || 0) < maxAgeMs) return false;
   s.refreshing = true;
   const channel = one('select * from channels where id = ?', channelId);
@@ -203,7 +210,7 @@ export function refreshStaleQr(channelId, maxAgeMs = 60e3) {
 // Desligar com calma: fecha o Chrome de cada canal para a sessão ficar gravada inteira.
 // Matar o Chrome no meio (reinício do servidor, fechar a janela do CRM) estragava a sessão e o WhatsApp não voltava.
 export async function stopAllWeb() {
-  await Promise.all([...sessions.keys()].map((id) => stopWeb(id).catch(() => {})));
+  await Promise.all([...sessions.values()].map((s) => inAccount(s.acc, () => stopWeb(s.channelId)).catch(() => {})));
 }
 
 // Liga sozinho, ao abrir o CRM, os canais que já leram o QR code.
@@ -214,7 +221,7 @@ export function bootWeb() {
 }
 
 const ready = (channelId) => {
-  const s = sessions.get(channelId);
+  const s = sess(channelId);
   if (s?.state !== 'ready') throw Object.assign(new Error('WhatsApp Web desconectado: abra Ajustes › Canais e leia o QR code'), { fatal: true, status: 409 });
   return s;
 };
@@ -275,7 +282,7 @@ async function onChatRead(channelId, chat) {
 
 // Você leu a conversa no CRM: marca como lida no celular (as últimas `count` mensagens do cliente).
 export async function markReadWeb(channel, conv, count = 1) {
-  const s = sessions.get(channel.id);
+  const s = sess(channel.id);
   if (s?.state !== 'ready') return false;
   const ids = all("select external_id from messages where conversation_id = ? and direction = 'in' and external_id is not null order by id desc limit ?",
     conv.id, Math.min(50, Math.max(1, count))).map((m) => m.external_id).reverse();
@@ -289,7 +296,7 @@ export async function markReadWeb(channel, conv, count = 1) {
 
 async function phoneOfLid(channelId, chatId) {
   try {
-    const [r] = await sessions.get(channelId).client.getContactLidAndPhone([chatId]);
+    const [r] = await sess(channelId).client.getContactLidAndPhone([chatId]);
     const pn = String(r?.pn || '');
     return pn.endsWith('@c.us') ? pn.split('@')[0] : null;
   } catch { return null; }
@@ -362,11 +369,12 @@ async function onIncoming(channelId, msg, { noFlow = false } = {}) {
   const item = channel && await toItem(channel, msg, 'in');
   if (item && noFlow) item.noFlow = true;
   const res = item && handleMessage(item);
-  // Veio do anúncio e é contato novo: salva também na agenda do celular ("Agro Sinal <nome>").
-  if (res?.adName && /^\d{10,13}$/.test(item.userId)) { // código interno (LID) não vai para a agenda
-    const s = sessions.get(channelId);
-    const last = res.adName.replace(/^Agro Sinal\s*/i, '');
-    s?.client?.saveOrEditAddressbookContact?.(item.userId, 'Agro Sinal', last, true)
+  // Veio do anúncio e é contato novo: salva também na agenda do celular (ex.: "Agro Sinal <nome>").
+  const prefix = perfil().prefixoAnuncio;
+  if (res?.adName && prefix && /^\d{10,13}$/.test(item.userId)) { // código interno (LID) não vai para a agenda
+    const s = sess(channelId);
+    const last = res.adName.slice(res.adName.toLowerCase().startsWith(prefix.toLowerCase()) ? prefix.length : 0).trim();
+    s?.client?.saveOrEditAddressbookContact?.(item.userId, prefix, last, true)
       .catch((e) => console.error('whatsapp web: salvar contato na agenda', e.message));
   }
 }

@@ -4,9 +4,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { DATA_DIR } from './db.js';
+import { DATA_ROOT } from './db.js';
 
-const FILE = path.join(DATA_DIR, 'dono.json');
+const FILE = path.join(DATA_ROOT, 'dono.json');
 const ME = `${os.hostname()}-${process.pid}-${Date.now()}`;
 let mine = false;
 
