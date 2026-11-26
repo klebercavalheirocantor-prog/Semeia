@@ -1,16 +1,1 @@
-fjd_banner.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_max_banner_2nd_product
-fjd_p1.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_max_picture_1_default_image
-fjd_p2.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_max_picture_2_default_image
-fjd_p3.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_max_picture_3_default_image
-fjd_num.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_max_numbers_list_default_image_fjd
-fjd_split.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_max_tabs_vertical_img_2
-fjd_isobus.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_max_tabs_vertical_img_1
-fjd_cam.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_max_tabs_vertical_reverse_image_1
-fjd_easy.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_max_tabs_vertical_reverse_image_2
-fjd_f1.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_max_feature_image_1
-fjd_f5.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_max_feature_image_5
-fjd_f6.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_max_feature_image_6
-fjd_terr.jpg https://www-fjdynamics-com.azureedge.net/web/image/150367-fe3984e0/Terrain%20Compensation.jpg
-fjd_at2.png https://www-fjdynamics-com.azureedge.net/web/image/144905-838f3f05/AT2-PC%E4%BA%A7%E5%93%81%E5%9B%BE.png
-fjd_lite.webp https://1500006283.vod2.myqcloud.com/6c9ac49bvodcq1500006283/b492257f5001834823418050688/AJkG9MeLnWgA.webp
-
+fjd_v2_n1.mp3 https://elevenlabsusercontent.com/database/workspace/f7ba3408aba84f3aab6790d892cf0311/content_generation/betREOAc9GTtAbD6w9Fz/eXQNpsy4glnuxon1IuEy/content.mp3?Expires=1795726800&KeyName=assets-cdn-key-1&Signature=Cgex0wKWELhLDAZceo1-tgGbOeY=
