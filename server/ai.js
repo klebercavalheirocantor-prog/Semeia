@@ -6,8 +6,10 @@ import { perfil } from './perfil.js';
 
 export const DEFAULT_MODEL = 'claude-haiku-5-5';
 
+// A chave da Anthropic é da empresa: marca sem chave própria usa a da marca principal.
+const aiCfg = (brandId) => { const c = getSetting(brandKey('ai', brandId), {}); return c.api_key ? c : { ...c, api_key: getSetting('ai', {}).api_key }; };
 export async function claude({ system, messages, maxTokens = 600, brandId = 1 }) {
-  const cfg = getSetting(brandKey('ai', brandId), {});
+  const cfg = aiCfg(brandId);
   if (!cfg.api_key) throw Object.assign(httpError(400, 'Configure a chave da Anthropic em Ajustes > Assistente de IA'), { fatal: true });
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -21,7 +23,7 @@ export async function claude({ system, messages, maxTokens = 600, brandId = 1 })
 
 // Chamada com ferramentas (assistente do CRM): devolve a resposta inteira (texto + pedidos de ferramenta).
 export async function claudeRaw({ system, messages, tools, maxTokens = 1000, brandId = 1 }) {
-  const cfg = getSetting(brandKey('ai', brandId), {});
+  const cfg = aiCfg(brandId);
   if (!cfg.api_key) throw httpError(400, 'Para usar o assistente, cadastre a chave da Anthropic em Ajustes › Assistente de IA');
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -97,7 +99,7 @@ Responda APENAS com JSON: {"classe": "nome_da_classe"}`;
 // items: [{ name, keywords }]; sent: nomes das tabelas já mandadas. Devolve { reply, tables, action, reason }.
 export async function aiAgent(history, { items = [], contactName = '', brandId = 1, sent = [] } = {}) {
   const { cfg, persona } = base(brandId);
-  const ag = perfil().agente;
+  const ag = perfil(brandId).agente;
   const tables = items.map((it) => `- ${it.name}${(it.keywords || []).length ? ` (o cliente pode escrever: ${it.keywords.join(', ')})` : ''}`).join('\n');
   const system = `${persona}
 ${ag.contexto}
@@ -134,10 +136,10 @@ Responda APENAS com JSON: {"resposta": "texto ou vazio", "tabelas": ["nome exato
 }
 
 // Traduz para português o que o cliente escreveu (espanhol, inglês...), quando o atendente clica em "Traduzir".
-const modelos = () => (perfil().exemplosModelos ? ` (ex.: ${perfil().exemplosModelos})` : '');
+const modelos = (b) => (perfil(b).exemplosModelos ? ` (ex.: ${perfil(b).exemplosModelos})` : '');
 export async function translateIn(text, { brandId = 1 } = {}) {
-  const system = `Você traduz para o português do Brasil mensagens de WhatsApp que clientes de uma empresa${perfil().ramo ? ` ${perfil().ramo}` : ''} escreveram (geralmente em espanhol ou em inglês).
-Mantenha o sentido, o tom, os emojis, números, valores, nomes de produtos e modelos${modelos()} e as quebras de linha.
+  const system = `Você traduz para o português do Brasil mensagens de WhatsApp que clientes de uma empresa${perfil(brandId).ramo ? ` ${perfil(brandId).ramo}` : ''} escreveram (geralmente em espanhol ou em inglês).
+Mantenha o sentido, o tom, os emojis, números, valores, nomes de produtos e modelos${modelos(brandId)} e as quebras de linha.
 Se o texto já estiver em português, devolva igual.
 Responda APENAS com a tradução, sem aspas, sem explicação.`;
   const out = await claude({ system, messages: [{ role: 'user', content: text }], maxTokens: 1000, brandId });
@@ -150,7 +152,7 @@ export async function translateOut(text, { to = 'es', customer = [], brandId = 1
   const lang = { es: 'espanhol', en: 'inglês' }[to] || to;
   const system = `Você traduz mensagens de WhatsApp que um vendedor brasileiro escreveu em português para o cliente dele.
 Traduza para ${lang}${to === 'es' ? ' natural, como se fala no Paraguai e na Argentina, tratando o cliente por "usted"' : ''}.
-Mantenha o tom, os emojis, números, valores, nomes de produtos e modelos${modelos()} e as quebras de linha.
+Mantenha o tom, os emojis, números, valores, nomes de produtos e modelos${modelos(brandId)} e as quebras de linha.
 Se as últimas mensagens do cliente estiverem em português, devolva o texto original sem mudar nada.
 Se o texto já estiver em ${lang}, devolva igual.
 Responda APENAS com o texto final, sem aspas, sem explicação.

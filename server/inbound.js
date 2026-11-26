@@ -119,8 +119,8 @@ export function handleMessage(item) {
 export const AD_TAG = 'Veio do anúncio';
 // Contato novo que veio do anúncio é salvo como "<prefixo do perfil> <nome do perfil>" (ex.: "Agro Sinal Maria";
 // sem nome: o telefone). Empresa sem prefixo no perfil: só o nome.
-export function adContactName(name, phone) {
-  const prefix = perfil().prefixoAnuncio;
+export function adContactName(name, phone, brandId = 1) {
+  const prefix = perfil(brandId).prefixoAnuncio;
   const base = String(name || '').replace(/^Cliente (WhatsApp|Instagram|Messenger)$/, '').trim() || String(phone || '').replace(/@.*/, '');
   if (!prefix) return base;
   return base.toLowerCase().startsWith(prefix.toLowerCase()) ? base : `${prefix} ${base}`.trim();
@@ -128,8 +128,8 @@ export function adContactName(name, phone) {
 function markAd(res, ad) {
   if (res.created) {
     const c = one('select name from contacts where id = ?', res.contactId);
-    const conv = one('select external_id from conversations where id = ?', res.conversationId);
-    const name = adContactName(c?.name, conv?.external_id);
+    const conv = one('select external_id, channel_id from conversations where id = ?', res.conversationId);
+    const name = adContactName(c?.name, conv?.external_id, one('select brand_id from channels where id = ?', conv?.channel_id)?.brand_id ?? 1);
     run('update contacts set name = ? where id = ?', name, res.contactId);
     if (res.leadId) run('update leads set name = ? where id = ?', name, res.leadId);
     res.adName = name;

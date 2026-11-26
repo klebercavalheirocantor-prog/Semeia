@@ -240,7 +240,7 @@ function channelsPublic(brandId) {
 
 // ---------- respostas prontas (como no WhatsApp Business), por marca. "es" é a versão em espanhol (números com tradução).
 // Sem lista salva, a marca principal começa com as respostas do perfil da empresa (ver perfil.js).
-const quickReplies = (brand) => getSetting(brandKey('quick_replies', brand), null) ?? (Number(brand) === 1 ? perfil().respostasProntas : []);
+const quickReplies = (brand) => getSetting(brandKey('quick_replies', brand), null) ?? (Number(brand) === 1 ? perfil(1).respostasProntas : []);
 app.put('/api/quick-replies', (req, res) => {
   admin(req);
   const list = Array.isArray(req.body) ? req.body : [];
@@ -291,7 +291,7 @@ app.get('/api/me', (req, res) => {
     billing: billingInfo(req.account),
     meta: u.is_admin ? { graph_version: meta.graph_version, verify_token: meta.verify_token, has_app_secret: !!meta.app_secret } : null,
     email: u.is_admin ? (({ api_key, ...e }) => ({ ...e, has_key: !!api_key }))(getSetting(brandKey('email', req.brand), {})) : null,
-    ai: u.is_admin ? (({ api_key, groq_key, ...e }) => ({ model: DEFAULT_MODEL, ...e, has_key: !!api_key, has_groq: !!groq_key }))(getSetting(brandKey('ai', req.brand), {})) : null,
+    ai: u.is_admin ? (({ api_key, groq_key, ...e }) => ({ model: DEFAULT_MODEL, ...e, has_key: !!(api_key || getSetting('ai', {}).api_key), has_groq: !!(groq_key || getSetting('ai', {}).groq_key) }))(getSetting(brandKey('ai', req.brand), {})) : null,
     transcribe: !!groqKey(req.brand),
     pipelines: all('select * from pipelines where brand_id = ? order by sort, id', req.brand).map((p) => ({ ...p, stages: all('select * from stages where pipeline_id = ? order by sort', p.id) })),
     users: all('select id, name, email, is_admin, is_active, role_id from users order by name'),

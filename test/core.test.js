@@ -1523,3 +1523,17 @@ test('lida no celular fica lida no CRM; lida no CRM (ou "marcar todas") fica lid
   assert.deepEqual(marked.at(-1).slice(1), ['lr-4']);
   run("update channels set status = 'disabled' where id = ?", ch.id);
 });
+
+test('marca de outro ramo (ex.: KC First Class ao lado da AgroVox) não herda antena nem "Agro Sinal"; usa a chave de IA da empresa', async () => {
+  const { perfil } = await import('../server/perfil.js');
+  const { adContactName } = await import('../server/inbound.js');
+  const id = (await call('admin', 'POST', '/api/brands', { name: 'KC First Class' })).body.id;
+  assert.equal(perfil(1).prefixoAnuncio, 'Agro Sinal');
+  assert.equal(perfil(id).prefixoAnuncio, '');
+  assert.doesNotMatch(perfil(id).agente.objetivo, /antena/i);
+  assert.equal(adContactName('Maria Souza', '5511999990000', id), 'Maria Souza');
+  assert.equal(adContactName('Maria Souza', '5511999990000', 1), 'Agro Sinal Maria Souza');
+  const me = (await call('admin', 'GET', '/api/me', null, { 'x-brand': String(id) })).body;
+  assert.equal(me.brand, id);
+  assert.equal(me.ai.has_key, !!getSetting('ai', {}).api_key); // a chave da marca principal vale para a nova
+});

@@ -8,7 +8,7 @@ import { emit } from './bus.js';
 import { translateIn } from './ai.js';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
-export const groqKey = (brandId) => getSetting(brandKey('ai', brandId), {}).groq_key || '';
+export const groqKey = (brandId) => getSetting(brandKey('ai', brandId), {}).groq_key || getSetting('ai', {}).groq_key || ''; // marca sem chave usa a da principal
 
 // "audio/ogg; codecs=opus" -> "ogg" (a Groq descobre o formato pela extensão do nome)
 const extOf = (mime) => ({ mpeg: 'mp3', 'x-m4a': 'm4a', mp4: 'm4a' })[String(mime).split('/')[1]?.split(';')[0].trim()] || String(mime).split('/')[1]?.split(';')[0].trim() || 'ogg';

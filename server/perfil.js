@@ -77,7 +77,13 @@ PREÇOS: (preencha aqui a tabela de valores por sinal e prazo. Enquanto estiver 
 };
 
 export const PERFIS = { padrao: PADRAO, agrovox: AGROVOX };
-export const perfil = () => PERFIS[getSetting('perfil', 'padrao')] || PADRAO;
+// O perfil vale para a marca principal (1). Outras marcas da mesma empresa (ex.: KC First Class ao lado da AgroVox)
+// são de outro ramo: usam o perfil neutro, a não ser que tenham o próprio ("perfil:<marca>").
+export const perfil = (brandId = 1) => {
+  const b = Number(brandId) || 1;
+  const key = b === 1 ? getSetting('perfil', 'padrao') : getSetting(`perfil:${b}`, 'padrao');
+  return PERFIS[key] || PADRAO;
+};
 
 // Tira do começo do nome as palavras do perfil (ex.: "Agro Sinal Maria" -> "Maria"). Mais longas primeiro.
 export function semPrefixo(name) {

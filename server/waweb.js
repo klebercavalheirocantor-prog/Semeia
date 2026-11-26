@@ -372,7 +372,7 @@ async function onIncoming(channelId, msg, { noFlow = false } = {}) {
   if (item && noFlow) item.noFlow = true;
   const res = item && handleMessage(item);
   // Veio do anúncio e é contato novo: salva também na agenda do celular (ex.: "Agro Sinal <nome>").
-  const prefix = perfil().prefixoAnuncio;
+  const prefix = perfil(channel?.brand_id ?? 1).prefixoAnuncio;
   if (res?.adName && prefix && /^\d{10,13}$/.test(item.userId)) { // código interno (LID) não vai para a agenda
     const s = sess(channelId);
     const last = res.adName.slice(res.adName.toLowerCase().startsWith(prefix.toLowerCase()) ? prefix.length : 0).trim();
