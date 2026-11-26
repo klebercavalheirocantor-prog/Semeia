@@ -1,2 +1,2 @@
-lt_pt_fim.mp3 pt
-lt_es_fim.mp3 es
+g4cl_pt_intro.mp3 pt
+g4cl_es_intro.mp3 es
