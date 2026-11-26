@@ -9,11 +9,14 @@ import { semPrefixo } from './perfil.js';
 export const CANAIS = ['Anúncio Facebook Brasil', 'Anúncio Facebook EUA', 'Disparo no WhatsApp'];
 const OFFSET_MS = 3 * 3600e3; // America/Sao_Paulo
 
-export function readInvestment(dir = accountDir()) {
-  try { return JSON.parse(fs.readFileSync(path.join(dir, 'investimento.json'), 'utf8')); } catch { return null; }
+// Investimento em anúncios é de cada marca: o arquivo de sempre é da marca principal (AgroVox);
+// as outras (AgroPool, KC First Class) têm o próprio, e sem arquivo o investimento é zero.
+export const investmentFile = (brandId = 1) => (Number(brandId) > 1 ? `investimento-marca${Number(brandId)}.json` : 'investimento.json');
+export function readInvestment(dir = accountDir(), brandId = 1) {
+  try { return JSON.parse(fs.readFileSync(path.join(dir, investmentFile(brandId)), 'utf8')); } catch { return null; }
 }
 
-export function results({ brandId = 1, investment = readInvestment() } = {}) {
+export function results({ brandId = 1, investment = readInvestment(accountDir(), brandId) } = {}) {
   const fields = Object.fromEntries(all("select name, id from custom_fields where entity = 'lead'").map((f) => [f.name, f.id]));
   const fv = (leadId, name) => {
     if (!fields[name]) return null;

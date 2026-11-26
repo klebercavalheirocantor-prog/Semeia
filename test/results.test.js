@@ -67,3 +67,11 @@ test('investimento gravado pela tarefa diária na nuvem (rota de administrador)'
   assert.deepEqual((await call('GET', '/api/admin/investment')).body, inv);
   assert.equal((await call('GET', '/api/results')).body.total.investido, 25000);
 });
+
+test('investimento em anúncios é de cada marca: a marca nova não herda o da AgroVox', async () => {
+  const { results } = await import('../server/results.js');
+  run("insert into brands(id, name, created_at) values(9, 'KC First Class', 0) on conflict(id) do nothing");
+  const kc = results({ brandId: 9 });
+  assert.equal(kc.total.investido, 0);
+  assert.equal(kc.total.lucro, 0);
+});

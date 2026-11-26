@@ -12,7 +12,7 @@ import { handleWebhookItems } from './inbound.js';
 import { sendTemplateTo, sendEmail, contactFromUnsubToken, fillVars } from './outbound.js';
 import { audienceCount, campaignStats, startCampaign, pauseCampaign } from './campaigns.js';
 import { dashboard } from './dashboard.js';
-import { results, readInvestment } from './results.js';
+import { results, readInvestment, investmentFile } from './results.js';
 import { flowOnHuman, flowOnStage, validateGraph, simulate, portsOf } from './flows.js';
 import { claude, DEFAULT_MODEL, translateOut, translateIn } from './ai.js';
 import { transcribeMessage, groqKey } from './transcribe.js';
@@ -1398,12 +1398,13 @@ app.get('/api/results', (req, res) => {
   res.json(results({ brandId: req.brand }));
 });
 // Investimento dos anúncios: a tarefa diária grava aqui (logada como administrador), em vez do arquivo no PC.
-app.get('/api/admin/investment', (req, res) => { admin(req); res.json(readInvestment() || {}); });
+app.get('/api/admin/investment', (req, res) => { admin(req); res.json(readInvestment(accountDir(), req.brand) || {}); });
 app.put('/api/admin/investment', (req, res) => {
   admin(req);
   const d = req.body;
   if (!d || typeof d !== 'object' || Array.isArray(d) || typeof d.canais !== 'object') throw httpError(400, 'Formato inválido: precisa do campo "canais"');
-  fs.writeFileSync(path.join(accountDir(), 'investimento.json'), JSON.stringify(d, null, 2));
+  // A tarefa diária grava o investimento da AgroVox; para outra marca, mande "marca": <número> no corpo.
+  fs.writeFileSync(path.join(accountDir(), investmentFile(Number(d.marca) || 1)), JSON.stringify(d, null, 2));
   res.json({ ok: true, updated_at: d.updated_at || null });
 });
 
