@@ -258,7 +258,9 @@ export async function sendWeb(channel, to, { text = '', file, buttons } = {}) {
   let m;
   if (file) {
     const L = await loadLib(engineOf(channel));
-    m = await s.client.sendMessage(chatId, new L.MessageMedia(file.mime, Buffer.from(file.buf).toString('base64'), file.name), text ? { caption: text } : {});
+    // Áudio OGG (gravado no Fechaê) vai como mensagem de voz, com a bolinha de "gravado na hora".
+    const voice = file.mime === 'audio/ogg';
+    m = await s.client.sendMessage(chatId, new L.MessageMedia(file.mime, Buffer.from(file.buf).toString('base64'), file.name), { ...(text && !voice ? { caption: text } : {}), ...(voice ? { sendAudioAsVoice: true } : {}) });
   } else m = await s.client.sendMessage(chatId, text);
   return { id: m?.id?._serialized || null, wa_id: chatId.endsWith('@c.us') ? chatId.split('@')[0] : chatId };
 }

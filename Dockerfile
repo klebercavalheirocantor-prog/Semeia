@@ -4,7 +4,7 @@ FROM node:24-bookworm-slim
 # O pacote chromium do Debian entra só pelas bibliotecas de sistema; o WhatsApp Web roda no Chrome for Testing do
 # Puppeteer (o mesmo navegador do PC, onde o login do WhatsApp volta sozinho depois de reiniciar).
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git chromium fonts-liberation fonts-noto-color-emoji ca-certificates tzdata \
+ && apt-get install -y --no-install-recommends git ffmpeg chromium fonts-liberation fonts-noto-color-emoji ca-certificates tzdata \
  && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \

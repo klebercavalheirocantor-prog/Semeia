@@ -247,7 +247,7 @@ export class Client extends EventEmitter {
       const caption = opts.caption || undefined;
       payload = mime.startsWith('image/') ? { image: buf, caption, mimetype: mime }
         : mime.startsWith('video/') ? { video: buf, caption, mimetype: mime }
-          : mime.startsWith('audio/') ? { audio: buf, mimetype: mime }
+          : mime.startsWith('audio/') ? (opts.sendAudioAsVoice ? { audio: buf, mimetype: 'audio/ogg; codecs=opus', ptt: true } : { audio: buf, mimetype: mime })
             : { document: buf, mimetype: mime, fileName: content.filename || 'arquivo', caption };
     } else payload = { text: String(content ?? '') };
     const m = await this.sock.sendMessage(jid, payload);

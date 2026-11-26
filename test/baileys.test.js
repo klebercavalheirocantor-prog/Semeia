@@ -112,6 +112,9 @@ test('motor sem navegador: QR, conecta, recebe, responde, status, cai e volta so
   assert.deepEqual([s.sent[1].payload.caption, s.sent[1].payload.mimetype, String(s.sent[1].payload.image)], ['Segue a tabela', 'image/png', 'PNG']);
   await c.sendMessage('556788881111@c.us', new MessageMedia('application/pdf', Buffer.from('PDF').toString('base64'), 'proposta.pdf'));
   assert.deepEqual([s.sent[2].payload.fileName, s.sent[2].payload.mimetype], ['proposta.pdf', 'application/pdf']);
+  // áudio gravado no Fechaê: vai como mensagem de voz (ptt), em OGG/Opus
+  await c.sendMessage('556788881111@c.us', new MessageMedia('audio/ogg', Buffer.from('OggS').toString('base64'), 'voz.ogg'), { sendAudioAsVoice: true });
+  assert.deepEqual([s.sent[3].payload.ptt, s.sent[3].payload.mimetype, String(s.sent[3].payload.audio)], [true, 'audio/ogg; codecs=opus', 'OggS']);
   s.ev.emit('messages.update', [{ key: { id: r1.id._serialized }, update: { status: 2 } }, { key: { id: 'SENT1' }, update: { status: 3 } },
     { key: { id: 'SENT1' }, update: { status: 4 } }, { key: { id: 'X' }, update: { status: 0 } }, { key: { id: 'Y' }, update: { status: 1 } }]);
   assert.deepEqual(ev.ack, [['SENT1', 1], ['SENT1', 2], ['SENT1', 3], ['X', -1]]);

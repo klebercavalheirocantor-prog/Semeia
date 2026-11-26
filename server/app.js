@@ -18,6 +18,7 @@ import { claude, DEFAULT_MODEL, translateOut, translateIn } from './ai.js';
 import { transcribeMessage, groqKey } from './transcribe.js';
 import { perfil } from './perfil.js';
 import { talk } from './assistente.js';
+import { toVoice } from './voice.js';
 import { mountMcp, newLink, revokeLink, linkInfo } from './mcp.js';
 import { PLANS, TRIAL_DAYS, signupOpen, canUse, limits, billingInfo, startTrial, checkout, syncSubscription, cancel, logAccess, hasFeature, planFor, FEATURE_NAMES } from './billing.js';
 import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES, markReadWeb } from './waweb.js';
@@ -1051,6 +1052,11 @@ app.post('/api/conversations/:id/messages', express.raw({ type: () => true, limi
     const name = decodeURIComponent(req.get('x-filename') || 'arquivo');
     file = { buf: req.body, name, mime: (req.get('content-type') || 'application/octet-stream').split(';')[0] };
     if (file.buf.length > 16 * 1024 * 1024 && !file.mime.startsWith('application/')) throw httpError(400, 'Mídia maior que 16 MB: o WhatsApp não aceita');
+    // Áudio gravado aqui: vira mensagem de voz do WhatsApp (OGG/Opus).
+    if (req.get('x-voice') === '1' && file.mime.startsWith('audio/')) {
+      const v = await toVoice(file.buf, file.mime);
+      file = { buf: v.buf, mime: v.mime, name: v.mime === 'audio/ogg' ? `voz-${now()}.ogg` : file.name };
+    }
     text = decodeURIComponent(req.get('x-caption') || '');
   }
   if (!text && !file) throw httpError(400, 'Mensagem vazia');

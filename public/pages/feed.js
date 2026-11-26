@@ -21,6 +21,78 @@ function PhotoView({ src, alt, onClose }) {
   </div>`;
 }
 
+// Player de áudio no estilo WhatsApp: play/pausa, barra, tempo e velocidade (1x, 1,5x, 2x).
+const fmtSec = (t) => (Number.isFinite(t) ? `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}` : '0:00');
+const SPEEDS = [1, 1.5, 2];
+function AudioPlayer({ src, voice, mine }) {
+  const ref = useRef();
+  const [on, setOn] = useState(false);
+  const [t, setT] = useState(0);
+  const [dur, setDur] = useState(0);
+  const [sp, setSp] = useState(0);
+  const toggle = () => { const a = ref.current; if (a.paused) { document.querySelectorAll('audio').forEach((x) => x !== a && x.pause()); a.play().catch(fail); } else a.pause(); };
+  const speed = () => { const n = (sp + 1) % SPEEDS.length; setSp(n); ref.current.playbackRate = SPEEDS[n]; };
+  // WebM gravado no navegador às vezes não informa a duração: descobre pulando para o fim.
+  const meta = (e) => { const a = e.target; if (Number.isFinite(a.duration)) setDur(a.duration); else { a.currentTime = 1e9; a.ontimeupdate = () => { a.ontimeupdate = null; setDur(a.duration); a.currentTime = 0; }; } };
+  return html`<div class=${`ap ${mine ? 'mine' : ''}`}>
+    <audio ref=${ref} src=${src} preload="metadata" onLoadedMetadata=${meta} onTimeUpdate=${(e) => setT(e.target.currentTime)}
+      onPlay=${() => setOn(true)} onPause=${() => setOn(false)} onEnded=${() => { setOn(false); setT(0); }}></audio>
+    <button type="button" class="ap-play" onClick=${toggle} aria-label=${on ? 'Pausar áudio' : 'Tocar áudio'}>
+      ${on ? html`<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>`
+        : html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>`}</button>
+    <div class="ap-mid">
+      <input type="range" class="ap-bar" min="0" max=${dur || 1} step="0.1" value=${t} aria-label="Posição do áudio" style=${`--p:${dur ? (t / dur) * 100 : 0}%`}
+        onInput=${(e) => { ref.current.currentTime = Number(e.target.value); setT(Number(e.target.value)); }} />
+      <div class="ap-time"><span>${fmtSec(on || t ? t : dur)}</span>${voice && html`<span class="ap-mic" title="Mensagem de voz">🎤</span>`}</div>
+    </div>
+    <button type="button" class="ap-speed" onClick=${speed} aria-label="Velocidade do áudio">${String(SPEEDS[sp]).replace('.', ',')}x</button>
+  </div>`;
+}
+
+// Gravar áudio (mensagem de voz): microfone do navegador; o servidor converte para o formato de voz do WhatsApp.
+const REC_TYPES = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'];
+function VoiceRecorder({ onSend, onCancel }) {
+  const [secs, setSecs] = useState(0);
+  const [err, setErr] = useState('');
+  const rec = useRef(null);
+  const chunks = useRef([]);
+  const sendOnStop = useRef(false);
+  useEffect(() => {
+    let stream, timer, alive = true;
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!alive) return stream.getTracks().forEach((t) => t.stop());
+        const type = REC_TYPES.find((x) => window.MediaRecorder?.isTypeSupported?.(x)) || '';
+        const r = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+        r.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
+        r.onstop = () => {
+          stream.getTracks().forEach((t) => t.stop());
+          if (!sendOnStop.current) return;
+          const mime = (r.mimeType || 'audio/webm').split(';')[0];
+          const ext = mime.includes('ogg') ? 'ogg' : mime.includes('mp4') ? 'm4a' : 'webm';
+          onSend(new File(chunks.current, `voz.${ext}`, { type: mime }));
+        };
+        r.start(250);
+        rec.current = r;
+        const t0 = Date.now();
+        timer = setInterval(() => { const s = Math.floor((Date.now() - t0) / 1000); setSecs(s); if (s >= 300) stop(true); }, 250);
+      } catch (e) { setErr(e.name === 'NotAllowedError' ? 'O navegador não liberou o microfone. Clique no cadeado ao lado do endereço e permita o microfone.' : `Não consegui usar o microfone (${e.message}).`); }
+    })();
+    return () => { alive = false; clearInterval(timer); if (rec.current?.state === 'recording') { sendOnStop.current = false; rec.current.stop(); } else stream?.getTracks().forEach((t) => t.stop()); };
+  }, []);
+  const stop = (send) => { sendOnStop.current = send; if (rec.current?.state === 'recording') rec.current.stop(); if (!send) onCancel(); };
+  if (err) return html`<div class="rec-bar"><span class="error-text grow">${err}</span><button type="button" class="btn sm" onClick=${onCancel}>Fechar</button></div>`;
+  return html`<div class="rec-bar" role="group" aria-label="Gravando áudio">
+    <button type="button" class="round-btn ghost" onClick=${() => stop(false)} aria-label="Descartar áudio" title="Descartar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4zM6 8h12l-1 13H7z" /></svg></button>
+    <span class="rec-dot" aria-hidden="true"></span><span class="rec-time" aria-live="off">${fmtSec(secs)}</span>
+    <span class="grow small muted">Gravando… fale normalmente</span>
+    <button type="button" class="round-btn send" onClick=${() => stop(true)} aria-label="Enviar áudio" title="Enviar áudio">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20l18-8L3 4v6l12 2-12 2z" /></svg></button>
+  </div>`;
+}
+
 export function Bubble({ m, channelId }) {
   const [zoom, setZoom] = useState(false);
   // Número com tradução (Paraguai/Argentina, EUA): a mensagem do cliente ganha "Traduzir para português".
@@ -39,7 +111,7 @@ export function Bubble({ m, channelId }) {
   let media = null;
   if (f && mime.startsWith('image/')) media = html`<button type="button" class="bubble-img" onClick=${() => setZoom(true)} aria-label="Abrir foto"><img src=${f} alt=${m.file_name || 'imagem'} loading="lazy" /></button>
     ${zoom && html`<${PhotoView} src=${f} alt=${m.file_name || 'imagem'} onClose=${() => setZoom(false)} />`}`;
-  else if (f && mime.startsWith('audio/')) media = html`<audio controls src=${f} preload="none"></audio>`;
+  else if (f && mime.startsWith('audio/')) media = html`<${AudioPlayer} src=${f} voice=${mime === 'audio/ogg' || /^voz-/.test(m.file_name || '')} mine=${m.direction === 'out'} />`;
   else if (f && mime.startsWith('video/')) media = html`<video controls src=${f} preload="none"></video>`;
   else if (f) media = html`<a href=${f} target="_blank" rel="noopener">📎 ${m.file_name || 'arquivo'}</a>`;
   else if (m.kind !== 'text' && m.kind !== 'other' && !m.body) media = html`<span class="muted small">${m.error ? 'Mídia indisponível' : 'Baixando mídia…'}</span>`;
@@ -273,6 +345,9 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
   const [quickOpen, setQuickOpen] = useState(false);
   const [attach, setAttach] = useState(null); // tabela (imagem já salva) escolhida nas respostas prontas
   const [tables, setTables] = useState([]);
+  const [recording, setRecording] = useState(false);
+  const canRecord = !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
+  const touch = matchMedia('(pointer: coarse)').matches; // no celular, Enter pula linha (como no WhatsApp)
   useEffect(() => { if (!conversations.find((c) => c.id === convId)) setConvId(open[0]?.id || conversations[0]?.id); }, [conversations.map((c) => c.id + c.status).join()]);
   const conv = conversations.find((c) => c.id === convId);
   const trTo = B().channels.find((x) => x.id === conv?.channel_id)?.translate_to || '';
@@ -291,13 +366,13 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
     } catch (e) { fail(e); }
     setBusy(false);
   };
-  const sendFile = async (file, caption = text) => {
+  const sendFile = async (file, caption = text, voice = false) => {
     if (!file) return;
     setBusy(true);
     try {
       await api(`/conversations/${convId}/messages`, { method: 'POST', raw: true, body: file,
-        headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-filename': encodeURIComponent(file.name), 'x-caption': encodeURIComponent(caption) } });
-      setText('');
+        headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-filename': encodeURIComponent(file.name), 'x-caption': encodeURIComponent(caption), ...(voice ? { 'x-voice': '1' } : {}) } });
+      if (!voice) setText('');
       onSent?.();
     } catch (e) { fail(e); }
     setBusy(false);
@@ -344,25 +419,40 @@ export function Composer({ entity, entityId, conversations = [], disabled, onSen
     </div>`}
     ${tab === 'msg' && attach && html`<div class="row small attach-chip">🖼 <span class="grow ellipsis">Tabela: <strong>${attach.name}</strong> (o texto abaixo vai como legenda)</span>
       <button class="btn ghost sm" aria-label="Tirar a tabela" onClick=${() => setAttach(null)}>✕</button></div>`}
-    <textarea aria-label=${tab === 'msg' ? 'Mensagem' : tab === 'note' ? 'Nota' : 'Descrição da tarefa'} disabled=${tab === 'msg' && conv?.status === 'closed'}
-      placeholder=${tab === 'msg' ? (trTo ? `Escreva em português: vai traduzido para ${trTo === 'es' ? 'espanhol' : 'inglês'} (Ctrl+Enter envia)` : 'Escreva para o cliente… (Ctrl+Enter envia)') : tab === 'note' ? 'Nota interna, o cliente não vê' : 'O que precisa ser feito?'}
+    ${tab === 'msg' ? html`<div class="wa-input">
+      ${recording ? html`<${VoiceRecorder} onCancel=${() => setRecording(false)} onSend=${(f) => { setRecording(false); sendFile(f, '', true); }} />` : html`
+      <input type="file" ref=${fileRef} class="sr-only" id="file-${entityId}" onChange=${(e) => pickFile(e.target.files[0])} />
+      <label for="file-${entityId}" class="round-btn ghost" title="Anexar foto ou arquivo" aria-label="Anexar foto ou arquivo" tabindex="0" onKeyDown=${(e) => e.key === 'Enter' && fileRef.current.click()}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 6.5l-7.8 7.8a2 2 0 002.8 2.8l7.8-7.8a4 4 0 00-5.7-5.7L5.8 11.4a6 6 0 008.5 8.5l6.2-6.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg></label>
+      ${(quick.length > 0 || tables.length > 0) && html`<span style="position:relative">
+        <button type="button" class="round-btn ghost" aria-expanded=${quickOpen} title="Respostas prontas" aria-label="Respostas prontas" disabled=${conv?.status === 'closed'} onClick=${() => setQuickOpen(!quickOpen)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z" /></svg></button>
+        ${quickOpen && html`<div class="card col quick-menu" role="menu" aria-label="Respostas prontas">
+          ${quick.map((r) => html`<button role="menuitem" class="btn ghost" onClick=${() => useQuick(r)} title=${(trTo === 'es' && r.es) || r.pt || r.es}>
+            <strong>${r.title}</strong><span class="xs muted ellipsis">${(trTo === 'es' && r.es) || r.pt || r.es}</span></button>`)}
+          ${tables.length > 0 && html`<div class="xs muted" style="padding:6px 8px 2px">Tabelas de preço</div>
+            ${tables.map((t) => html`<button role="menuitem" class="btn ghost" onClick=${() => { setAttach(t); setQuickOpen(false); }}><strong>🖼 ${t.name}</strong></button>`)}`}
+          ${B().user.is_admin && html`<a class="xs" href="#/settings/quick" style="padding:4px 8px">Editar respostas prontas</a>`}
+        </div>`}</span>`}
+      <textarea class="wa-text" rows="1" aria-label="Mensagem" disabled=${conv?.status === 'closed'}
+        placeholder=${trTo ? `Escreva em português: vai em ${trTo === 'es' ? 'espanhol' : 'inglês'}` : 'Mensagem'}
+        value=${text} onInput=${(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`; }}
+        onKeyDown=${(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey || (!e.shiftKey && !touch))) { e.preventDefault(); send(); } }}></textarea>
+      ${text.trim() || attach || !canRecord
+        ? html`<button type="button" class="round-btn send" disabled=${busy || (!text.trim() && !attach) || conv?.status === 'closed'} onClick=${send} aria-label="Enviar" title="Enviar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20l18-8L3 4v6l12 2-12 2z" /></svg></button>`
+        : html`<button type="button" class="round-btn send" disabled=${busy || conv?.status === 'closed'} onClick=${() => setRecording(true)} aria-label="Gravar áudio" title="Gravar áudio">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.9V21h2v-2.1a7 7 0 006-6.9z" /></svg></button>`}`}
+    </div>
+    ${busy && html`<div class="xs muted">Enviando…</div>`}`
+    : html`<textarea aria-label=${tab === 'note' ? 'Nota' : 'Descrição da tarefa'}
+      placeholder=${tab === 'note' ? 'Nota interna, o cliente não vê' : 'O que precisa ser feito?'}
       value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(); }}></textarea>
     <div class="row">
-      ${tab === 'msg' && html`<input type="file" ref=${fileRef} class="sr-only" id="file-${entityId}" onChange=${(e) => pickFile(e.target.files[0])} />
-        <label for="file-${entityId}" class="btn" title="Anexar arquivo" tabindex="0" onKeyDown=${(e) => e.key === 'Enter' && fileRef.current.click()}>📎 Arquivo</label>
-        ${(quick.length > 0 || tables.length > 0) && html`<span style="position:relative">
-          <button class="btn" aria-expanded=${quickOpen} title="Respostas prontas" disabled=${conv?.status === 'closed'} onClick=${() => setQuickOpen(!quickOpen)}>⚡ Prontas</button>
-          ${quickOpen && html`<div class="card col quick-menu" role="menu" aria-label="Respostas prontas">
-            ${quick.map((r) => html`<button role="menuitem" class="btn ghost" onClick=${() => useQuick(r)} title=${(trTo === 'es' && r.es) || r.pt || r.es}>
-              <strong>${r.title}</strong><span class="xs muted ellipsis">${(trTo === 'es' && r.es) || r.pt || r.es}</span></button>`)}
-            ${tables.length > 0 && html`<div class="xs muted" style="padding:6px 8px 2px">Tabelas de preço</div>
-              ${tables.map((t) => html`<button role="menuitem" class="btn ghost" onClick=${() => { setAttach(t); setQuickOpen(false); }}><strong>🖼 ${t.name}</strong></button>`)}`}
-            ${B().user.is_admin && html`<a class="xs" href="#/settings/quick" style="padding:4px 8px">Editar respostas prontas</a>`}
-          </div>`}</span>`}`}
       <span class="spacer"></span>
-      <button class="btn primary" disabled=${busy || (!text.trim() && !(tab === 'msg' && attach)) || (tab === 'msg' && conv?.status === 'closed')} onClick=${send}>
-        ${busy ? 'Enviando…' : tab === 'msg' ? 'Enviar' : tab === 'note' ? 'Salvar nota' : 'Criar tarefa'}</button>
-    </div>
+      <button class="btn primary" disabled=${busy || !text.trim()} onClick=${send}>
+        ${busy ? 'Salvando…' : tab === 'note' ? 'Salvar nota' : 'Criar tarefa'}</button>
+    </div>`}
   </div>`;
 }
 

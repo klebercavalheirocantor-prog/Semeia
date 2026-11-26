@@ -1,4 +1,4 @@
-import { html, useState, useEffect, api, post, patch, del, fail, toast, Confirm, B, go, ago, money, useData, useDebounced, Modal, Channel, UserSelect, StageSelect, Skeleton, ErrorBox, Empty, stageById, userName } from '../lib.js';
+import { html, useState, useEffect, useRef, api, dayKey, fmtDay, post, patch, del, fail, toast, Confirm, B, go, ago, money, useData, useDebounced, Modal, Channel, UserSelect, StageSelect, Skeleton, ErrorBox, Empty, stageById, userName } from '../lib.js';
 import { Bubble, Composer } from './feed.js';
 import { LossModal } from './leads.js';
 
@@ -18,13 +18,38 @@ function LinkLeadModal({ convId, onClose }) {
   <//>`;
 }
 
+const initials = (n) => String(n || '?').replace(/^(agro( revenda)? sinal|agro)\s+/i, '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+const dayLabel = (ms) => { const k = dayKey(ms); return k === dayKey(Date.now()) ? 'Hoje' : k === dayKey(Date.now() - 864e5) ? 'Ontem' : fmtDay(ms); };
+const hue = (n) => [...String(n || '')].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 7);
+
+// Mensagens com a data separando os dias (Hoje, Ontem...) e o botão de descer até a última quando a pessoa sobe a conversa.
+function ChatFeed({ messages, channelId }) {
+  const ref = useRef();
+  const [away, setAway] = useState(false);
+  const toEnd = (smooth) => ref.current?.scrollTo({ top: ref.current.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  useEffect(() => { if (!away) toEnd(false); }, [messages.length, messages.at(-1)?.status]);
+  useEffect(() => { toEnd(false); }, []);
+  let prev = null;
+  return html`<div class="chat-wrap"><div class="feed chat-feed" id="chat-scroll" ref=${ref}
+      onScroll=${(e) => { const el = e.target; setAway(el.scrollHeight - el.scrollTop - el.clientHeight > 300); }}>
+    ${messages.map((m) => {
+      const d = dayKey(m.created_at);
+      const sep = d !== prev ? html`<div class="day" key=${'d' + d}>${dayLabel(m.created_at)}</div>` : null;
+      prev = d;
+      return html`${sep}<${Bubble} key=${m.id} m=${m} channelId=${channelId} />`;
+    })}
+    ${!messages.length && html`<${Empty} title="Sem mensagens" />`}
+  </div>
+  ${away && html`<button type="button" class="to-end" onClick=${() => toEnd(true)} aria-label="Ir para a última mensagem">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></svg></button>`}</div>`;
+}
+
 function Conversation({ id }) {
   const { data: c, error, reload } = useData(() => api(`/conversations/${id}`), [id], ['message', 'lead']);
   const [linking, setLinking] = useState(false);
   const [loss, setLoss] = useState(null);
   const [askDel, setAskDel] = useState(false);
   useEffect(() => { if (c?.unread > 0) patch(`/conversations/${id}`, { read: true }).catch(() => {}); }, [c?.messages.length, c?.unread]);
-  useEffect(() => { const el = document.getElementById('chat-scroll'); if (el) el.scrollTop = el.scrollHeight; }, [c?.messages.length, c?.messages.at(-1)?.status]);
   if (error) return html`<${ErrorBox} error=${error} retry=${reload} />`;
   if (!c) return html`<div class="page"><${Skeleton} rows=${5} /></div>`;
   const stage = c.lead && stageById(c.lead.stage_id);
@@ -35,8 +60,8 @@ function Conversation({ id }) {
     <div class="inbox-chat">
       <div class="chat-head">
         <a href="#/chats" class="btn ghost sm" aria-label="Voltar para a lista" style="display:var(--back,inline-flex)">←</a>
-        <${Channel} kind=${c.channel.kind} />
-        <div class="grow" style="min-width:0"><div class="ellipsis"><strong>${c.contact.name}</strong></div>
+        <span class="chat-avatar" aria-hidden="true" style=${`--h:${hue(c.contact.name)}`}>${initials(c.contact.name)}</span>
+        <div class="grow" style="min-width:0"><div class="ellipsis row" style="gap:6px"><strong class="ellipsis">${c.contact.name}</strong><${Channel} kind=${c.channel.kind} /></div>
           <div class="xs muted ellipsis">${c.contact.phones[0] || c.channel.name}${c.lead ? html` · <a href=${`#/lead/${c.lead.id}`}>${c.lead.name}</a>` : ''}</div></div>
         ${c.status === 'open' ? html`<button class="btn sm" onClick=${() => patch(`/conversations/${id}`, { status: 'closed' }).then(reload).catch(fail)}>Encerrar conversa</button>`
           : html`<button class="btn sm" onClick=${() => patch(`/conversations/${id}`, { status: 'open' }).then(reload).catch(fail)}>Reabrir</button>`}
@@ -46,10 +71,7 @@ function Conversation({ id }) {
         <button class="btn primary sm" onClick=${() => act('accept')}>Aceitar</button>
         <button class="btn sm" onClick=${() => setLinking(true)}>Juntar a um lead</button>
         <button class="btn danger sm" onClick=${() => act('decline')}>Recusar</button></div>`}
-      <div class="feed" id="chat-scroll">
-        ${c.messages.map((m) => html`<${Bubble} key=${m.id} m=${m} channelId=${c.channel_id} />`)}
-        ${!c.messages.length && html`<${Empty} title="Sem mensagens" />`}
-      </div>
+      <${ChatFeed} messages=${c.messages} channelId=${c.channel_id} />
       <${Composer} key=${id} entity="lead" entityId=${c.lead?.id || 0} conversations=${conversations} onSent=${reload}
         contactId=${c.contact.id} contactName=${c.contact.name} leadId=${c.lead?.id} />
     </div>
