@@ -40,12 +40,12 @@ PREÇOS: (preencha aqui. Enquanto estiver vazio, a IA passa para um atendente qu
 const AGROVOX = {
   ...PADRAO,
   ramo: 'de sinais de GPS agrícola',
-  exemplosModelos: 'StarFire 6000, NAV 900, Gen 4',
+  exemplosModelos: 'modelos de antena e de monitor (ex.: 6000, 4640)',
   agente: {
-    contexto: 'O cliente recebeu nossa mensagem oferecendo sinal de correção para piloto automático (John Deere e Trimble) e está respondendo no WhatsApp.',
-    objetivo: 'Seu objetivo: descobrir o modelo do equipamento dele (principalmente a ANTENA; veja na base de conhecimento o que é antena e o que é monitor) para mandar a TABELA DE PREÇO certa.',
-    exemploLegenda: 'Segue a tabela da StarFire 6000 😊 Qual plano fica melhor pro senhor?',
-    semModelo: 'Perguntou preço/valor sem dizer o modelo: peça o modelo da antena (ou uma foto) de forma natural. Não comece com "Ótimo".',
+    contexto: 'O cliente recebeu nossa mensagem oferecendo sinal de correção para piloto automático e está respondendo.',
+    objetivo: 'Seu objetivo: descobrir qual é o GPS dele, o modelo do MONITOR e o modelo da ANTENA (veja na base de conhecimento o que é antena e o que é monitor). Nunca cite marcas e nunca passe valores: quando souber o equipamento, um atendente passa o valor.',
+    exemploLegenda: 'Segue a tabela 😊 Qual plano fica melhor pro senhor?',
+    semModelo: 'Perguntou preço/valor sem dizer o modelo: diga que depende do equipamento e peça o modelo do monitor e da antena (ou uma foto) de forma natural. Não comece com "Ótimo".',
     semInteresse: 'Não tem interesse, não usa piloto, pediu para parar ou é engano',
     escolha: 'Escolha tabela só quando a conversa deixar claro um modelo (antena ou monitor) que bate com ela; no máximo 2.',
   },
@@ -55,20 +55,15 @@ const AGROVOX = {
     { title: 'Site', pt: 'Conheça a AgroVox: https://www.agro-vox.com 🌱', es: 'Conozca AgroVox: https://www.agro-vox.com 🌱' },
     { title: 'Pagamento no cartão', pt: 'O pagamento pode ser feito no cartão de crédito. 💳', es: 'El pago se puede hacer con tarjeta de crédito. 💳' },
     { title: 'Pagamento em cripto', pt: 'Também aceitamos pagamento em criptomoedas.', es: 'También aceptamos pago con criptomonedas.' },
-    { title: 'Sinais Trimble (diferença)',
-      pt: 'Os sinais da Trimble:\n📡 *RangePoint* (± 15 cm): pulverização, adubação a lanço e preparo de solo. É o mais barato.\n📡 *CenterPoint* (± 4 cm): plantio, colheita e qualquer serviço que precisa de linha reta e repetível. O sinal leva alguns minutos para firmar.\n📡 *CenterPoint Fast* (± 2,5 cm): a mesma aplicação do CenterPoint, só que firma bem mais rápido (perto de 1 minuto) e é um pouco mais preciso. Para quem não pode esperar no começo do dia.',
-      es: 'Las señales de Trimble:\n📡 *RangePoint* (± 15 cm): pulverización, fertilización al voleo y preparación de suelo. Es la más económica.\n📡 *CenterPoint* (± 4 cm): siembra, cosecha y cualquier trabajo que necesite líneas rectas y repetibles. La señal tarda unos minutos en estabilizarse.\n📡 *CenterPoint Fast* (± 2,5 cm): el mismo uso que CenterPoint, pero se estabiliza mucho más rápido (alrededor de 1 minuto) y es un poco más precisa. Ideal para quien no puede esperar al empezar el día.' },
   ],
   fluxosIniciais: true,
-  conhecimento: `Empresa: AgroVox (site www.agro-vox.com, Instagram @agrovoxtech).
+  conhecimento: `Empresa: AgroVox (site www.agro-vox.com, Instagram @agrovox.br).
 O que vendemos: sinal de correção para piloto automático / GPS agrícola, com ativação via código (sem precisar levar o equipamento).
-Sinais John Deere: SF2, SF3, SF-RTK e ativação SF3 Ready.
-Sinais Trimble: CenterPoint RTX e RangePoint RTX.
 Desconto: até 50% (o desconto varia por sinal).
 Precisão: até 2,5 cm (depende do sinal).
 Pagamento: cartão, com prazo.
 Suporte de quem é do campo.
-Para passar o valor certo precisamos do modelo da antena (ex.: StarFire 6000, 7000) e do monitor (ex.: 4600, 4640, G5) — ou uma foto do monitor.
+Para passar o valor certo precisamos do modelo da antena e do monitor — ou uma foto. Nunca cite marcas.
 
 PREÇOS: (preencha aqui a tabela de valores por sinal e prazo. Enquanto estiver vazio, a IA passa para um atendente quando o cliente pedir valor.)`,
   exemploEmail: 'contato@agro-vox.com',
