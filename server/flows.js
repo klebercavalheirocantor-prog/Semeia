@@ -87,6 +87,8 @@ async function execNode(node, io) {
       return { port: cls };
     }
     case 'ai_reply': {
+      // Como no atendente com tabelas: espera uns segundos com "digitando..." e não entra se uma pessoa assumiu nesse meio tempo.
+      if (io.pause && !(await io.pause())) return { abort: true };
       const turns = (io.vars.ai_turns ||= {});
       const r = await aiReply(await io.history(), { contactName: io.firstName, brandId: io.brandId });
       if (r.reply) await io.send(r.reply);
