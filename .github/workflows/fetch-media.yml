@@ -15,7 +15,7 @@ jobs:
         run: |
           while read -r name url; do
             [ -z "$name" ] && continue
-            curl -sSfL -o "voz/$name" "$url"
+            curl -sSfL --retry 3 --retry-delay 3 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36" -o "voz/$name" "$url" || echo "FAIL $name"
           done < voz/fetch.txt
           ls -la voz
       - name: commit
