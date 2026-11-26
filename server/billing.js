@@ -6,9 +6,9 @@ import { platform, accountIds } from './db.js';
 // Pacotes: Fecha (básico), Fecha Mais (intermediário) e Fecha Tudo (avançado). As chaves internas não mudam.
 // features: o que cada pacote libera além do básico (funil, conversas, atendente com IA e fluxos, áudio em texto).
 export const PLANS = {
-  essencial: { name: 'Fecha', cents: 19700, users: 2, whatsapp: 1, features: [] },
-  profissional: { name: 'Fecha Mais', cents: 39700, users: 5, whatsapp: 3, features: ['campanhas', 'assistente'] },
-  empresa: { name: 'Fecha Tudo', cents: 79700, users: 15, whatsapp: 10, features: ['campanhas', 'assistente', 'traducao', 'marcas'] },
+  essencial: { name: 'Fecha', cents: 4700, users: 2, whatsapp: 1, features: [] },
+  profissional: { name: 'Fecha Mais', cents: 9700, users: 5, whatsapp: 3, features: ['campanhas', 'assistente'] },
+  empresa: { name: 'Fecha Tudo', cents: 19700, users: 15, whatsapp: 10, features: ['campanhas', 'assistente', 'traducao', 'marcas'] },
 };
 export const FEATURE_NAMES = { campanhas: 'Campanhas', assistente: 'Assistente', traducao: 'Tradução automática', marcas: 'Várias marcas' };
 const ALL = Object.keys(FEATURE_NAMES);

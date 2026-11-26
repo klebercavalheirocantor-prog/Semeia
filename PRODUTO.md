@@ -59,7 +59,7 @@ então nada muda para a AgroVox.
 - [x] Nome e logo Fechaê nas telas, ícones do app, cores laranja e marinho (25/11).
 - [x] Cadastro pelo site (`#/cadastro`): empresa nasce no teste grátis de 7 dias, a pessoa cria a própria senha e já entra.
       Só abre com `CADASTRO_ABERTO=1` no servidor.
-- [x] Planos (Essencial R$ 197, Profissional R$ 397, Empresa R$ 797) com limite de usuários e números de WhatsApp.
+- [x] Planos (Fecha R$ 47, Fecha Mais R$ 97, Fecha Tudo R$ 197 — low ticket, decisão do Kleber em 25/11) com limite de usuários e números de WhatsApp.
 - [x] Fim do teste sem assinatura: acesso pausado (só a tela do plano), dados guardados. AgroVox e empresas do comando
       `nova-empresa` são "interno": sem cobrança nem limite.
 - [x] Assinatura mensal no Mercado Pago (`POST /api/billing/checkout` → link do MP; aviso em `/webhooks/mercadopago`,
@@ -79,7 +79,7 @@ então nada muda para a AgroVox.
 - [ ] Painel do dono da plataforma (ver todas as empresas, plano, quem está devendo).
 
 ## Página de vendas e pacotes (25/11)
-- `/planos.html` (vira a página inicial do fechae.com): pacotes Fecha (R$ 197), Fecha Mais (R$ 397) e Fecha Tudo (R$ 797).
+- `/planos.html` (vira a página inicial do fechae.com): pacotes Fecha (R$ 47), Fecha Mais (R$ 97) e Fecha Tudo (R$ 197), sem implantação inclusa.
   Botões levam ao cadastro já com o pacote (`/#/cadastro?plano=...`); "Assinar já" (`&pagar=1`) cria a conta e abre o
   pagamento no Mercado Pago. Com o cadastro fechado, os botões viram e-mail de interesse.
 - O que cada pacote libera é cobrado de verdade no sistema (`PLANS[].features` em billing.js): Fecha Mais = campanhas e
