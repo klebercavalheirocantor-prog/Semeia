@@ -1,2 +1,4 @@
-g4cl_pt_intro.mp3 pt
-g4cl_es_intro.mp3 es
+qa_AgroVox_G4_Autoridade_semMarca_PT.mp3 pt
+qa_AgroVox_G5_Oferta_semMarca_PT.mp3 pt
+qa_AgroVox_G4_Autoridad_sinMarca_ES.mp3 es
+qa_AgroVox_G5_Oferta_sinMarca_ES.mp3 es
