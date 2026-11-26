@@ -1,14 +1,2 @@
-at2_banner.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_banner_2nd_product
-at2_campo.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_image_text_box_fjd
-at2_plantio.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_key_images_default_image_2_fjd
-at2_pulv.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_key_images_default_image_3_fjd
-at2_colheita.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_key_images_default_image_4_fjd
-at2_key1.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_key_images_default_image_1_fjd
-at2_isobus.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_tabs_vertical_reverse_image_1
-at2_base_v1.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_four_columns_image_1
-at2_base_n20.jpg https://agriculture.fjdynamics.com/web/image/website.s_at2_four_columns_image_3
-at2_finder.webp https://1500006283.vod2.myqcloud.com/6c9ac49bvodcq1500006283/85707dfd5001834821343485364/Z0CHoC5fa4EA.webp
-at2_v_overview.mp4 https://fjdynamics-video.fjdac.com/6c9ac49bvodcq1500006283/4ddc61f81253642695788945591/FRwRobKa0GIA.mp4
-at2_v_turn.mp4 https://fjdynamics-video.fjdac.com/6c9ac49bvodcq1500006283/0cba59f73270835010308762443/EkriK71HPK8A.mp4
-at2_v_headland.mp4 https://fjdynamics-video.fjdac.com/6c9ac49bvodcq1500006283/84da608c1397757888586776674/PBF2jmKJLa8A.mp4
-at2_v_omega.mp4 https://fjdynamics-video.fjdac.com/6c9ac49bvodcq1500006283/c62a305e1397757888587275161/fRScWk85KnAA.mp4
+fjd_v3_a.mp3 https://elevenlabsusercontent.com/database/workspace/f7ba3408aba84f3aab6790d892cf0311/content_generation/n3x4RxvktwnTGvNwRdfy/rcPzrlEu5gMAreu8cwLr/content.mp3?Expires=1795734000&KeyName=assets-cdn-key-1&Signature=yivHKwwyf2BeNYQ_FusWhZZfdz4=
+fjd_v3_b.mp3 https://elevenlabsusercontent.com/database/workspace/f7ba3408aba84f3aab6790d892cf0311/content_generation/WDk1uly2Xr8sg2ALhk3e/D1TnKThWyThfZy0YAowp/content.mp3?Expires=1795734000&KeyName=assets-cdn-key-1&Signature=pf3nC5waOX8TGrDc0EVBjGKoB4c=
