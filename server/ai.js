@@ -61,11 +61,13 @@ function base(brandId = 1) {
 }
 
 // history: [{ direction: 'in'|'out', body }] em ordem cronológica
-const toMessages = (history) => {
+// asJson: nossas mensagens anteriores entram como {"resposta": ...}, para a IA continuar respondendo em JSON
+const toMessages = (history, asJson = false) => {
   const out = [];
   for (const m of history) {
     const role = m.direction === 'in' ? 'user' : 'assistant';
-    const text = String(m.body || '').trim() || '[mídia]';
+    let text = String(m.body || '').trim() || '[mídia]';
+    if (asJson && role === 'assistant') text = JSON.stringify({ resposta: text, tabelas: [], acao: 'continuar', motivo: '' });
     if (out.length && out.at(-1).role === role) out.at(-1).content += `\n${text}`;
     else out.push({ role, content: text });
   }
@@ -135,7 +137,7 @@ BASE DE CONHECIMENTO:
 ${cfg.knowledge || '(vazia)'}
 
 Responda APENAS com JSON: {"resposta": "texto ou vazio", "tabelas": ["nome exato"], "acao": "continuar" | "humano" | "encerrar", "motivo": "curto"}`;
-  const msgs = toMessages(history.slice(-14));
+  const msgs = toMessages(history.slice(-14), true);
   if (!msgs.length) return { reply: '', tables: [], action: 'continuar', reason: '' };
   let raw = await claude({ system, messages: msgs, maxTokens: 400, brandId });
   let j = parseJson(raw);
@@ -144,7 +146,9 @@ Responda APENAS com JSON: {"resposta": "texto ou vazio", "tabelas": ["nome exato
     raw = await claude({ system: `${system}\nIMPORTANTE: sua saída inteira deve ser um único objeto JSON válido, sem nenhum texto fora dele.`, messages: msgs, maxTokens: 400, brandId });
     j = parseJson(raw);
   }
-  if (!j) return { reply: '', tables: [], action: 'humano', reason: 'IA não respondeu no formato' };
+  // Veio só o texto da resposta, sem JSON: usa o texto (curto e sem chaves) em vez de largar o cliente sem resposta
+  if (!j && raw && !raw.includes('{') && raw.length <= 500) j = { resposta: raw, acao: 'continuar' };
+  if (!j) return { reply: '', tables: [], action: 'humano', reason: `IA não respondeu no formato: ${String(raw || '(vazio)').slice(0, 120)}` };
   const names = new Set(items.map((it) => it.name));
   return {
     reply: String(j.resposta || '').trim(),
