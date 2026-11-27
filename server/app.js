@@ -255,6 +255,17 @@ app.put('/api/quick-replies', (req, res) => {
   res.json(clean);
 });
 
+// Tabelas de preço de uso manual (aparecem nas respostas prontas; a IA não envia). [{ name, file_id, channel_id? }]
+app.get('/api/price-tables', (req, res) => res.json(getSetting(brandKey('price_tables', req.brand), [])));
+app.put('/api/price-tables', (req, res) => {
+  admin(req);
+  const list = (Array.isArray(req.body) ? req.body : []).slice(0, 40)
+    .map((t) => ({ name: String(t?.name || '').trim().slice(0, 60), file_id: Number(t?.file_id) || 0, channel_id: Number(t?.channel_id) || null }))
+    .filter((t) => t.name && t.file_id && one('select 1 from files where id = ?', t.file_id));
+  setSetting(brandKey('price_tables', req.brand), list);
+  res.json(list);
+});
+
 // ---------- assistente: a pessoa conversa e o Claude faz no CRM por ela, só com as ações e permissões dela.
 app.post('/api/assistente', async (req, res) => {
   const msgs = (Array.isArray(req.body?.messages) ? req.body.messages : []).slice(-20)
@@ -1012,6 +1023,10 @@ app.get('/api/conversations/:id/tables', (req, res) => {
   const own = flows.filter((f) => Number(f.tc.channel_id) === ch.id);
   const pick = own.length ? own : flows.filter((f) => !f.tc.channel_id && (!f.tc.channel || f.tc.channel === ch.kind));
   const seen = new Map();
+  // Tabelas só de uso manual (o robô não manda): ficam nas respostas prontas para a equipe enviar.
+  for (const it of getSetting(brandKey('price_tables', ch.brand_id), [])) {
+    if (it.file_id && it.name && (!it.channel_id || Number(it.channel_id) === ch.id) && !seen.has(it.name)) seen.set(it.name, { name: it.name, file_id: it.file_id });
+  }
   for (const f of pick) for (const n of f.graph.nodes || []) {
     if (n.type !== 'ai_agent' && n.type !== 'catalog') continue;
     for (const it of n.data?.items || []) if (it.file_id && it.name && !seen.has(it.name)) seen.set(it.name, { name: it.name, file_id: it.file_id });
