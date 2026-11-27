@@ -63,7 +63,11 @@ function parseJson(text) {
       else if (c === '}' && --depth === 0) { try { return JSON.parse(t.slice(i, k + 1)); } catch { break; } }
     }
   }
-  return null;
+  // Último recurso (aspas sem escape no meio do texto, JSON cortado): pega os campos um por um
+  const r = t.match(/"resposta"\s*:\s*"([\s\S]*?)"\s*(?:,\s*"(?:tabelas|acao|motivo)"|\}\s*$)/) || t.match(/"resposta"\s*:\s*"([\s\S]*?)"?\s*$/);
+  if (!r) return null;
+  const acao = t.match(/"acao"\s*:\s*"(\w+)"/);
+  return { resposta: r[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').trim(), tabelas: [], acao: acao ? acao[1] : 'continuar' };
 }
 
 function base(brandId = 1) {
@@ -151,16 +155,16 @@ ${cfg.knowledge || '(vazia)'}
 Responda APENAS com JSON: {"resposta": "texto ou vazio", "tabelas": ["nome exato"], "acao": "continuar" | "humano" | "encerrar", "motivo": "curto"}`;
   const msgs = toMessages(history.slice(-14), true);
   if (!msgs.length) return { reply: '', tables: [], action: 'continuar', reason: '' };
-  let raw = await claude({ system, messages: msgs, maxTokens: 400, brandId });
+  let raw = await claude({ system, messages: msgs, maxTokens: 700, brandId });
   let j = parseJson(raw);
   if (!j) { // tenta mais uma vez antes de passar para um atendente
     console.warn('IA fora do formato:', raw.slice(0, 300));
-    raw = await claude({ system: `${system}\nIMPORTANTE: sua saída inteira deve ser um único objeto JSON válido, sem nenhum texto fora dele.`, messages: msgs, maxTokens: 400, brandId });
+    raw = await claude({ system: `${system}\nIMPORTANTE: sua saída inteira deve ser um único objeto JSON válido, sem nenhum texto fora dele.`, messages: msgs, maxTokens: 700, brandId });
     j = parseJson(raw);
   }
   // Veio só o texto da resposta, sem JSON: usa o texto (curto e sem chaves) em vez de largar o cliente sem resposta
-  if (!j && raw && !raw.includes('{') && raw.length <= 500) j = { resposta: raw, acao: 'continuar' };
-  if (!j) return { reply: '', tables: [], action: 'humano', reason: `IA não respondeu no formato: ${String(raw || '(vazio)').slice(0, 120)}` };
+  if (!j && raw && !/[{<]/.test(raw) && raw.length <= 500) j = { resposta: raw, acao: 'continuar' };
+  if (!j) return { reply: '', tables: [], action: 'humano', reason: `IA não respondeu no formato: ${String(raw || '(vazio)').slice(-200)}` };
   const names = new Set(items.map((it) => it.name));
   return {
     reply: String(j.resposta || '').trim(),
