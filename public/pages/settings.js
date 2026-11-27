@@ -1,6 +1,6 @@
 import { html, useState, useEffect, api, post, patch, del, fail, toast, B, loadBoot, Modal, Confirm, UserSelect, Empty } from '../lib.js';
 
-const SECTIONS = [['plano', 'Plano'], ['general', 'Geral'], ['channels', 'Canais'], ['templates', 'Modelos do WhatsApp'], ['email', 'E-mail'], ['ai', 'Assistente de IA'], ['quick', 'Respostas prontas'], ['pipelines', 'Funis e etapas'], ['users', 'Equipe'], ['roles', 'Permissões'], ['fields', 'Campos'], ['lists', 'Tags e listas'], ['account', 'Minha conta']];
+const SECTIONS = [['plano', 'Plano'], ['general', 'Geral'], ['channels', 'Canais'], ['templates', 'Modelos do WhatsApp'], ['email', 'E-mail'], ['ai', 'Assistente de IA'], ['resumo', 'Resumo do dia'], ['quick', 'Respostas prontas'], ['pipelines', 'Funis e etapas'], ['users', 'Equipe'], ['roles', 'Permissões'], ['fields', 'Campos'], ['lists', 'Tags e listas'], ['account', 'Minha conta']];
 
 // Plano e pagamento: teste grátis, plano atual e assinatura pelo Mercado Pago.
 export function Plano() {
@@ -62,6 +62,37 @@ function ClaudeLink() {
     <div class="row"><button type="button" class="btn" onClick=${gerar}>${info?.created_at ? 'Gerar link novo' : 'Gerar link'}</button>
       ${info?.created_at && html`<button type="button" class="btn danger" onClick=${desligar}>Desligar</button>`}</div>
   </section>`;
+}
+
+// Resumo do dia: todo dia de manhã o dono recebe no WhatsApp o que aconteceu (e na segunda, o que funcionou na semana).
+function Resumo() {
+  const [r, setR] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = () => api('/resumo').then(setR).catch(fail);
+  useEffect(() => { load(); }, []);
+  if (!r) return html`<p class="muted">Carregando…</p>`;
+  const set = (k) => (e) => setR({ ...r, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+  const salvar = () => api('/resumo', { method: 'PUT', body: r }).then(() => { toast(r.ativo ? 'Resumo ligado' : 'Salvo'); load(); }).catch(fail);
+  const teste = () => { setBusy(true); api('/resumo', { method: 'PUT', body: r }).then(() => post('/resumo/teste'))
+    .then(() => toast('Resumo enviado. Confira o WhatsApp')).catch(fail).finally(() => setBusy(false)); };
+  return html`<div class="col" style="max-width:760px"><div class="card pad form"><h2>Resumo do dia no WhatsApp</h2>
+    <p class="small">Todo dia, na hora escolhida, chega no seu WhatsApp o que aconteceu: o que a IA respondeu de madrugada, leads novos, vendas, quem está esperando resposta e as tarefas do dia. Na segunda-feira vem junto o que funcionou na semana.</p>
+    ${!r.canais.length && html`<p class="small" style="color:var(--danger)">Conecte um número de WhatsApp em Canais para poder mandar o resumo.</p>`}
+    <label class="field">Número que manda<select value=${r.canal_id || ''} onChange=${set('canal_id')}><option value="">Escolha…</option>
+      ${r.canais.map((c) => html`<option value=${c.id}>${c.name} (${c.marca})</option>`)}</select></label>
+    <label class="field">Número que recebe (seu WhatsApp, com DDD)<input inputmode="tel" placeholder="67 99999-9999" value=${r.telefone} onInput=${set('telefone')} /></label>
+    <div class="row">
+      <label class="field">Hora<select value=${r.hora} onChange=${set('hora')}>${[5, 6, 7, 8, 9, 10].map((h) => html`<option value=${h}>${h}h</option>`)}</select></label>
+      <label class="field grow">Fuso<select value=${r.fuso} onChange=${set('fuso')}>${Object.entries(r.fusos).map(([k, l]) => html`<option value=${k}>${l}</option>`)}</select></label>
+    </div>
+    <label class="row small"><input type="checkbox" checked=${r.semanal} onChange=${set('semanal')} /> Na segunda, mandar também o que funcionou na semana</label>
+    <label class="row small"><input type="checkbox" checked=${r.ativo} onChange=${set('ativo')} /> Ligado: mandar todo dia</label>
+    ${r.erro && html`<p class="small" style="color:var(--danger)">Último envio falhou (${r.erro})</p>`}
+    <p class="xs muted">Se você responder a mensagem do resumo, a resposta entra no CRM como uma conversa normal desse número.</p>
+    <div class="row"><button class="btn primary" onClick=${salvar}>Salvar</button>
+      <button class="btn" disabled=${busy || !r.canal_id || String(r.telefone).replace(/\D/g, '').length < 10} onClick=${teste}>${busy ? 'Mandando…' : 'Mandar um teste agora'}</button></div>
+  </div>
+  <div class="card pad"><h2>Como fica (com os números de agora)</h2><pre class="small" style="white-space:pre-wrap;font-family:inherit;margin:0">${r.previa}</pre></div></div>`;
 }
 
 function General() {
@@ -511,7 +542,7 @@ function Lists() {
 export function SettingsPage({ section }) {
   const isAdmin = B().user.is_admin;
   const sec = isAdmin ? section || (B().billing?.plan === 'interno' ? 'general' : 'plano') : 'account';
-  const View = { plano: Plano, general: General, channels: Channels, templates: Templates, email: EmailSettings, ai: AiSettings, quick: QuickReplies, pipelines: Pipelines, users: Users, roles: Roles, fields: Fields, lists: Lists, account: Account }[sec] || General;
+  const View = { plano: Plano, general: General, channels: Channels, templates: Templates, email: EmailSettings, ai: AiSettings, resumo: Resumo, quick: QuickReplies, pipelines: Pipelines, users: Users, roles: Roles, fields: Fields, lists: Lists, account: Account }[sec] || General;
   return html`<div class="main"><div class="topbar"><h1>Configurações</h1></div><div class="page"><div class="settings">
     <nav aria-label="Seções">${SECTIONS.filter(([k]) => isAdmin || k === 'account').map(([k, l]) => html`<a href=${`#/settings/${k}`} aria-current=${sec === k ? 'page' : null}>${l}</a>`)}</nav>
     <div><${View} /></div>

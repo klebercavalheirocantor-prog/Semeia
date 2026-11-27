@@ -19,6 +19,7 @@ import { transcribeMessage, groqKey } from './transcribe.js';
 import { perfil } from './perfil.js';
 import { talk } from './assistente.js';
 import { toVoice } from './voice.js';
+import { config as resumoConfig, texto as resumoTexto, enviar as enviarResumo, FUSOS as RESUMO_FUSOS, local as resumoLocal } from './resumo.js';
 import { mountMcp, newLink, revokeLink, linkInfo } from './mcp.js';
 import { PLANS, TRIAL_DAYS, signupOpen, canUse, limits, billingInfo, startTrial, checkout, syncSubscription, cancel, logAccess, hasFeature, planFor, FEATURE_NAMES } from './billing.js';
 import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES, markReadWeb } from './waweb.js';
@@ -305,6 +306,32 @@ app.get('/api/me', (req, res) => {
     unread: one(`select coalesce(sum(c.unread), 0) n from conversations c join channels ch on ch.id = c.channel_id and ch.brand_id = ? left join leads l on l.id = c.lead_id
       where c.status = 'open' and (${convScope(u)})`, req.brand).n,
   });
+});
+
+// ---------- resumo do dia no WhatsApp (administrador): ajuste, prévia do texto e envio de teste
+app.get('/api/resumo', (req, res) => {
+  admin(req);
+  const { ultimo, ...cfg } = resumoConfig();
+  const canais = all("select c.id, c.name, b.name marca from channels c join brands b on b.id = c.brand_id where c.kind = 'whatsapp' and c.status != 'disabled' order by c.brand_id, c.id")
+    .filter((c) => isWeb(one('select config from channels where id = ?', c.id)));
+  res.json({ ...cfg, fusos: RESUMO_FUSOS, canais, previa: resumoTexto(cfg) });
+});
+app.put('/api/resumo', (req, res) => {
+  admin(req);
+  const b = req.body || {};
+  const cfg = { ...getSetting('resumo', {}), ativo: !!b.ativo, semanal: b.semanal !== false, hora: Math.min(12, Math.max(4, Number(b.hora) || 7)),
+    fuso: RESUMO_FUSOS[b.fuso] ? b.fuso : 'America/Sao_Paulo', telefone: String(b.telefone || '').replace(/\D/g, '').slice(0, 15),
+    canal_id: Number(b.canal_id) || null, url: `${req.protocol}://${req.get('host')}` };
+  if (cfg.ativo && (!cfg.canal_id || cfg.telefone.length < 10)) throw httpError(400, 'Escolha o número que manda e coloque o número que recebe (com DDD)');
+  // Acabou de ligar: o primeiro resumo automático é amanhã de manhã (hoje, use "Mandar um teste agora").
+  if (cfg.ativo && !getSetting('resumo', {}).ativo) cfg.ultimo = resumoLocal(Date.now(), cfg.fuso).day;
+  setSetting('resumo', cfg);
+  res.json({ ok: true });
+});
+app.post('/api/resumo/teste', async (req, res) => {
+  admin(req);
+  await enviarResumo();
+  res.json({ ok: true });
 });
 
 app.patch('/api/settings', (req, res) => {

@@ -9,6 +9,7 @@ import { tickCampaigns } from './campaigns.js';
 import { tickFlows, initFlows } from './flows.js';
 import { bootWeb, stopAllWeb } from './waweb.js';
 import { tickMailboxes } from './mailbox.js';
+import { tickResumo } from './resumo.js';
 import { becomeOwner, releaseOwner } from './owner.js';
 
 // Recuperar acesso: node server/index.js senha email@exemplo.com NovaSenha123
@@ -83,6 +84,8 @@ function startJobs() {
   setInterval(() => eachAccount(tickFlows, 'fluxos'), 15000);
   // Caixa de e-mail: confere as respostas a cada minuto.
   setInterval(() => eachAccount(tickMailboxes, 'e-mail'), 60e3);
+  // Resumo do dia no WhatsApp do dono, na hora escolhida.
+  setInterval(() => eachAccount(tickResumo, 'resumo do dia'), 60e3);
   eachAccount(bootWeb, 'whatsapp web'); // reconecta o WhatsApp Web que já leu o QR code
 }
 

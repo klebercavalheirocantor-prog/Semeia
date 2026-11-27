@@ -1,0 +1,16 @@
+# Testes automáticos a cada envio para o GitHub (o mesmo "npm test" do PC).
+name: testes
+on: [push]
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm install --no-save --no-audit --no-fund @whiskeysockets/baileys@7.0.0-rc14
+      - run: npm test
