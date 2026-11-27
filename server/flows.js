@@ -356,6 +356,13 @@ export function flowOnInbound({ conversationId, text, campaignId = null, newConv
         if (trigger === 'campaign_reply' && notARealReply(text)) break; // espera a pessoa escrever de verdade
         if (flow.trigger_config.channel && flow.trigger_config.channel !== conv.channel_kind) continue;
         if (flow.trigger_config.channel_id && Number(flow.trigger_config.channel_id) !== conv.channel_id) continue;
+        // "text_contains": só começa se a 1ª mensagem tiver um desses trechos (ex.: o texto pronto do anúncio),
+        // para a IA não responder conversa pessoal que chega no mesmo número
+        const must = flow.trigger_config.text_contains;
+        if (trigger === 'new_conversation' && Array.isArray(must) && must.length) {
+          const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          if (!must.some((m) => norm(text).includes(norm(m)))) continue;
+        }
         return startRun(flow, conv, { last_reply: text, campaign_id: campaignId });
       }
     }
