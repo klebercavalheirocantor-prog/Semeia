@@ -71,7 +71,11 @@ function parseJson(text) {
 }
 
 function base(brandId = 1) {
-  const cfg = getSetting(brandKey('ai', brandId), {});
+  const saved = getSetting(brandKey('ai', brandId), {});
+  // informação fixa do perfil (ex.: piloto FJ Dynamics) vai junto da base dos Ajustes, sem duplicar
+  const extra = perfil(brandId).conhecimentoExtra || '';
+  const knowledge = extra && !String(saved.knowledge || '').includes(extra.split('\n')[0]) ? `${saved.knowledge || ''}\n\n${extra}`.trim() : saved.knowledge;
+  const cfg = { ...saved, knowledge };
   const company = one('select name from brands where id = ?', brandId)?.name || 'a empresa';
   return { cfg, company, persona: cfg.persona || `Você é o atendente virtual de ${company}, no WhatsApp.` };
 }

@@ -5,11 +5,19 @@
 import { getSetting } from './db.js';
 
 // Informações do piloto FJ Dynamics (também vão para a base de conhecimento da AgroVox no banco).
-export const PILOTO = `Piloto automático FJ Dynamics (a AgroVox é representante oficial da FJ Dynamics; só diga isso se perguntarem).
-Kit completo: tela (monitor), volante elétrico e antena receptora. Instala em praticamente qualquer trator.
-Precisão: até 2,5 cm.
+export const PILOTO = `PILOTO AUTOMÁTICO FJ DYNAMICS — modelo AT2 (a AgroVox é representante oficial da FJ Dynamics; só diga isso se perguntarem).
+O que vem no kit: tela (terminal de controle), volante elétrico, antena receptora (receptor GNSS) e sensor de ângulo. Entregue instalado e testado.
+Precisão: até 2,5 cm de passada, em qualquer terreno (usa GNSS + RTK). Funciona de 0,1 a 26 km/h.
+Compatível com a maioria dos tratores, de várias marcas, e com uma ampla gama de implementos. Para confirmar, pergunte o modelo e o ano do trator.
+Vantagens: menos falhas e sobreposição, economia de insumos, menos cansaço do operador e dá para trabalhar à noite sem ficar olhando para frente e para trás.
+Funções: linhas retas, curvas, pivô, linha A+, cabeceira, gradagem diagonal; linha de condução (deixa os trilhos para a pulverização); salvar grupos de linhas e usar de novo; compensação de terreno (desnível); passa os dados do talhão entre máquinas por pendrive (formato GIS).
+Sinais de correção que aceita: RTK, PPP e SBAS.
+ISOBUS: controla implementos compatíveis pela própria tela (terminal virtual e controlador de tarefas).
+Manobra automática de cabeceira (U-Turn automático): é uma função paga à parte; o valor um especialista passa.
+Ficha técnica: tela 275 x 180 x 40 mm, alimentação 9–36 V, internet 4G/3G/2G, proteção IP65. Volante elétrico 410 x 410 x 135 mm, força (torque) de até 30 N·m, 12/24 V, proteção IP67, trabalha de -20 a 85 °C. Antena recebe GPS, GLONASS, BeiDou, Galileo e QZSS em várias frequências, proteção IP66.
+A fábrica FJ Dynamics está em mais de 100 países, com mais de 200 mil máquinas usando a tecnologia.
 Preço (promoção): de R$ 59.980 por R$ 29.990 (50% OFF). Esse valor NÃO inclui a instalação nem a Base RTK.
-Instalação: cobrada à parte; o valor e a data um especialista passa (depende da cidade). O piloto é entregue instalado e testado.
+Instalação: cobrada à parte; o valor e a data um especialista passa (depende da cidade).
 Base RTK (opcional): + R$ 9.990. É uma base que fica na fazenda e gera o próprio sinal: nunca mais paga sinal e liga quantos pilotos FJ Dynamics quiser. O cliente escolhe com ou sem a Base.
 Sem a Base RTK: um especialista explica as opções de sinal.
 Forma de pagamento, prazo de entrega e garantia: um especialista passa.
@@ -64,6 +72,8 @@ Vá direto ao ponto: não explique o produto nem como funciona a não ser que o 
     escolha: 'Escolha tabela só quando a conversa deixar claro um modelo (antena ou monitor) que bate com ela; no máximo 2.',
   },
   // contato que chega pelo anúncio do piloto FJ Dynamics é salvo como "Agro Piloto <nome>"
+  // vai junto da base de conhecimento salva nos Ajustes (se ela ainda não tiver esse texto)
+  conhecimentoExtra: PILOTO,
   prefixosPorAnuncio: [{ re: /fj\s*dynamics|base\s*rtk/i, prefixo: 'Agro Piloto' }],
   prefixoAnuncio: 'Agro Sinal',
   prefixosNome: ['agro sinal', 'agro revenda sinal', 'agro piloto', 'agro', 'atualize'],
