@@ -21,7 +21,8 @@ Instalação: cobrada à parte; o valor e a data um especialista passa (depende 
 Base RTK (opcional): + R$ 9.990. É uma base que fica na fazenda e gera o próprio sinal: nunca mais paga sinal e liga quantos pilotos FJ Dynamics quiser. O cliente escolhe com ou sem a Base.
 Sem a Base RTK: um especialista explica as opções de sinal.
 Forma de pagamento, prazo de entrega e garantia: um especialista passa.
-Para o orçamento precisamos: modelo e ano do trator, quantas máquinas, cidade/estado da fazenda e se quer a Base RTK.`;
+Para o orçamento precisamos: modelo e ano do trator, quantas máquinas, cidade/estado da fazenda e se quer a Base RTK.
+Outros produtos FJ Dynamics que também vendemos (o foco é o AT2: ofereça sempre o AT2 primeiro): pilotos AG1, AT2 Lite, AS2, AH2, AT2 MAX e AT2 Ultra; controle de seção e de implementos; monitoramento de rendimento; bases e receptores RTK; câmeras e acessórios. Se o cliente pedir um desses, diga que também trabalhamos com ele e que um especialista passa os detalhes e o valor (acao "humano"). Não invente preço nem ficha técnica desses outros.`;
 
 const PADRAO = {
   // tradução: de que tipo de empresa são os clientes e exemplos de nomes de produto que não se traduzem
