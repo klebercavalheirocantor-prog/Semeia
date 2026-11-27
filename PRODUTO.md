@@ -96,5 +96,12 @@ então nada muda para a AgroVox.
   O conector do Claude não tem essa ação.
 - [ ] Próximo: trocar o link secreto por login OAuth no conector.
 
+## Equipe de IA (27/11)
+- Página de vendas no estilo "uma pessoa, sete funcionários de IA" (organograma, rotina, "quem decide é você").
+- Resumo do dia no WhatsApp do dono (`server/resumo.js`, Ajustes › Resumo do dia): todo dia na hora escolhida, e na
+  segunda o que funcionou na semana. Só números do banco, sem IA. Ao ligar, o primeiro automático é no dia seguinte.
+- Testes rodam no GitHub a cada envio (`.github/workflows/testes.yml`).
+- [ ] Próximos: aviso de renovação (sucesso do cliente), campanha de anúncio criada pausada.
+
 ## Fase 3
 WhatsApp oficial (Meta) · arquivos fora do servidor · WhatsApp em serviço separado · parcerias com agências.
