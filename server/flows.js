@@ -334,6 +334,12 @@ export function flowOnInbound({ conversationId, text, campaignId = null, newConv
       if (r) run("update flow_runs set state = 'stopped', error = 'cliente pediu para sair', wake_at = null, updated_at = ? where id = ?", now(), r.id);
       return;
     }
+    // Etiqueta "Só humano" no contato: o robô fica calado e quem responde é a equipe.
+    if (one(`select 1 from conversations c join entity_tags et on et.entity = 'contact' and et.entity_id = c.contact_id
+      join tags t on t.id = et.tag_id where c.id = ? and lower(t.name) in ('só humano', 'so humano')`, conversationId)) {
+      if (r) run("update flow_runs set state = 'stopped', error = 'contato marcado como Só humano', wake_at = null, updated_at = ? where id = ?", now(), r.id);
+      return;
+    }
     if (r) {
       if (r.state === 'waiting_reply') {
         const flow = loadFlow(r.flow_id);
