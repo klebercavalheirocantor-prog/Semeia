@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fechaê · Pacotes</title>
-<meta name="description" content="Fechaê: conversas do WhatsApp, funil e atendente com IA num lugar só. Teste 7 dias grátis.">
+<title>Fechaê · Sua equipe de IA</title>
+<meta name="description" content="Fechaê: uma pessoa no comando e uma equipe de IA que atende no WhatsApp, organiza o funil e manda o resumo do dia às 7h. Teste 7 dias grátis.">
 <link rel="icon" href="/logo.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -43,13 +43,14 @@ h1, h2, h3 { font-family: 'Baloo 2', system-ui, sans-serif; line-height: 1.05; m
 .top nav a:hover { opacity: 1; }
 .top nav .entrar { border: 2px solid rgba(255,255,255,.35); padding: 6px 16px; border-radius: 999px; opacity: 1; }
 
-/* herói */
+/* herói: uma pessoa, uma equipe inteira */
 .heroi { background: var(--marinho); color: #fff; padding: 56px 0 120px; position: relative; overflow: hidden; }
 .heroi::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 70px; background: var(--areia); clip-path: polygon(0 100%, 100% 30%, 100% 100%); }
 .heroi .wrap { display: grid; grid-template-columns: 1.1fr .9fr; gap: 56px; align-items: center; }
-.heroi h1 { font-size: clamp(44px, 6.4vw, 84px); font-weight: 800; letter-spacing: -2px; }
-.heroi h1 .aspas { color: var(--laranja); }
-.heroi p.sub { font-size: 20px; max-width: 34ch; color: #D5DAE8; margin: 22px 0 32px; }
+.heroi h1 { font-size: clamp(46px, 7vw, 92px); font-weight: 800; letter-spacing: -2px; line-height: .98; }
+.heroi h1 span { display: block; }
+.heroi h1 .risco { color: var(--laranja); }
+.heroi p.sub { font-size: 20px; max-width: 36ch; color: #D5DAE8; margin: 24px 0 32px; }
 .botoes { display: flex; flex-wrap: wrap; gap: 14px; }
 .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 26px; border-radius: 999px; font-weight: 700; font-size: 17px; text-decoration: none; border: 0; cursor: pointer; }
 .btn.cheio { background: var(--laranja); color: var(--marinho-fundo); box-shadow: 0 6px 0 var(--laranja-forte); }
@@ -57,34 +58,79 @@ h1, h2, h3 { font-family: 'Baloo 2', system-ui, sans-serif; line-height: 1.05; m
 .btn.linha { border: 2px solid rgba(255,255,255,.4); color: #fff; }
 .btn.linha:hover { border-color: #fff; }
 .heroi .miudo { margin-top: 18px; font-size: 14px; color: #AEB7CF; }
+.placar { display: grid; grid-template-columns: repeat(4, auto); gap: 10px 28px; margin-top: 40px; justify-content: start; }
+.placar div { border-left: 3px solid var(--laranja); padding-left: 12px; }
+.placar b { display: block; font-family: 'Baloo 2', sans-serif; font-size: 34px; line-height: 1; }
+.placar span { font-size: 14px; color: #AEB7CF; }
 
-/* conversa animada */
-.celular { background: #fff; color: var(--tinta); border-radius: 30px; padding: 16px; box-shadow: 0 30px 60px rgba(0,0,0,.35); max-width: 380px; justify-self: end; width: 100%; position: relative; transform: rotate(2deg); }
-.celular .cab { display: flex; align-items: center; gap: 10px; padding: 4px 6px 12px; border-bottom: 1px solid #EEE; }
-.celular .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--pessego); display: grid; place-items: center; font-weight: 700; color: var(--laranja-forte); }
-.celular .cab small { display: block; color: #6B7280; font-size: 12px; }
-.chat { display: flex; flex-direction: column; gap: 8px; padding: 14px 4px 34px; min-height: 330px; }
-.bolha { max-width: 82%; padding: 8px 12px; border-radius: 14px; font-size: 15px; line-height: 1.35; }
-.bolha.cli { align-self: flex-start; background: #F1F2F6; border-top-left-radius: 4px; }
-.bolha.ia { align-self: flex-end; background: var(--zap); border-top-right-radius: 4px; }
-.bolha.ia small { display: block; font-size: 11px; color: #4B7B3A; margin-top: 2px; }
-.tabela { align-self: flex-end; background: var(--zap); border-radius: 14px; border-top-right-radius: 4px; padding: 6px; width: 70%; }
-.tabela div { background: #fff; border-radius: 10px; padding: 10px; font-size: 13px; }
-.tabela b { display: block; font-size: 14px; margin-bottom: 4px; }
-.tabela i { font-style: normal; display: flex; justify-content: space-between; border-top: 1px dashed #E5E7EB; padding-top: 4px; margin-top: 4px; }
+/* celular com o resumo das 7h */
+.celular { background: #ECE5DD; color: var(--tinta); border-radius: 30px; padding: 0 0 16px; box-shadow: 0 30px 60px rgba(0,0,0,.35); max-width: 380px; justify-self: end; width: 100%; position: relative; transform: rotate(2deg); overflow: visible; }
+.celular .cab { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: #1F5C4A; color: #fff; border-radius: 30px 30px 0 0; }
+.celular .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--laranja); display: grid; place-items: center; font-weight: 800; color: var(--marinho-fundo); }
+.celular .cab small { display: block; color: #CFE3DA; font-size: 12px; }
+.chat { display: flex; flex-direction: column; gap: 8px; padding: 16px 14px 30px; min-height: 360px; }
+.resumo { align-self: flex-start; background: #fff; border-radius: 14px; border-top-left-radius: 4px; padding: 10px 12px; font-size: 14.5px; line-height: 1.4; width: 92%; }
+.resumo p { margin: 0 0 6px; }
+.resumo .hora { display: block; text-align: right; font-size: 11px; color: #8A8F9C; margin-top: 4px; }
 .carimbo { position: absolute; left: -34px; bottom: -26px; background: var(--laranja); color: var(--marinho-fundo); font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 24px;
-  padding: 8px 18px 6px 14px; border-radius: 16px; transform: rotate(-8deg); display: flex; align-items: center; gap: 8px; box-shadow: 0 10px 24px rgba(0,0,0,.3); }
-.carimbo svg { width: 26px; height: 20px; }
-.anima .passo { opacity: 0; transform: translateY(8px); animation: entra .35s ease-out forwards; }
+  padding: 8px 18px 6px 14px; border-radius: 16px; transform: rotate(-8deg); box-shadow: 0 10px 24px rgba(0,0,0,.3); }
+.anima .passo { opacity: 0; transform: translateY(6px); animation: entra .35s ease-out forwards; }
 .anima .passo:nth-child(1) { animation-delay: .4s; }
-.anima .passo:nth-child(2) { animation-delay: 1.3s; }
-.anima .passo:nth-child(3) { animation-delay: 2.3s; }
-.anima .passo:nth-child(4) { animation-delay: 3.1s; }
-.anima .passo:nth-child(5) { animation-delay: 4.1s; }
-.anima .carimbo { opacity: 0; animation: carimba .45s cubic-bezier(.2, 1.6, .4, 1) 4.9s forwards; }
+.anima .passo:nth-child(2) { animation-delay: 1.1s; }
+.anima .passo:nth-child(3) { animation-delay: 1.8s; }
+.anima .passo:nth-child(4) { animation-delay: 2.5s; }
+.anima .passo:nth-child(5) { animation-delay: 3.2s; }
+.anima .carimbo { opacity: 0; animation: carimba .45s cubic-bezier(.2, 1.6, .4, 1) 4s forwards; }
 @keyframes entra { to { opacity: 1; transform: none; } }
 @keyframes carimba { from { opacity: 0; transform: rotate(-8deg) scale(1.8); } to { opacity: 1; transform: rotate(-8deg) scale(1); } }
-@media (prefers-reduced-motion: reduce) { .anima .passo, .anima .carimbo { animation: none; opacity: 1; transform: rotate(-8deg); } .anima .passo { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .anima .passo, .anima .carimbo { animation: none; opacity: 1; } .anima .passo { transform: none; } .anima .carimbo { transform: rotate(-8deg); } }
+
+/* organograma: a equipe */
+.equipe { padding: 40px 0 88px; }
+.equipe h2, .rotina h2, .decide h2 { font-size: clamp(36px, 4.6vw, 60px); font-weight: 800; letter-spacing: -1px; color: var(--marinho); max-width: 18ch; }
+.equipe .intro, .rotina .intro, .decide .intro { color: var(--apagado); max-width: 58ch; margin: 12px 0 44px; }
+.canais { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.canais span { background: #fff; border: 2px solid #F1E2D8; border-radius: 999px; padding: 6px 14px; font-weight: 600; font-size: 15px; }
+.fio { width: 3px; height: 34px; background: var(--marinho); margin: 0 auto; position: relative; }
+.fio::after { content: ''; position: absolute; left: 50%; bottom: -5px; width: 9px; height: 9px; border: 3px solid var(--marinho); background: var(--areia); border-radius: 50%; transform: translateX(-50%); }
+.chefe { background: var(--marinho); color: #fff; border-radius: 22px; padding: 22px 28px; text-align: center; max-width: 480px; margin: 6px auto 0; }
+.chefe b { font-family: 'Baloo 2', sans-serif; font-size: 32px; display: block; line-height: 1.1; }
+.chefe span { color: #AEB7CF; font-size: 15px; }
+.deptos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; position: relative; padding-top: 44px; }
+.deptos::before { content: ''; position: absolute; top: 0; left: 50%; width: 3px; height: 22px; background: var(--marinho); transform: translateX(-50%); }
+.deptos::after { content: ''; position: absolute; top: 20px; left: calc(100% / 6); right: calc(100% / 6); height: 3px; background: var(--marinho); }
+.depto { background: #fff; border-radius: 22px; padding: 22px 24px 18px; border: 2px solid #F1E2D8; position: relative; }
+.depto::before { content: ''; position: absolute; top: -24px; left: 50%; width: 3px; height: 24px; background: var(--marinho); transform: translateX(-50%); }
+.depto header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; border-bottom: 2px solid #F1E2D8; padding-bottom: 10px; margin-bottom: 6px; }
+.depto h3 { font-size: 26px; color: var(--marinho); }
+.depto header small { font-size: 13px; color: var(--apagado); white-space: nowrap; }
+.depto ul { list-style: none; margin: 0; padding: 0; }
+.depto li { display: grid; grid-template-columns: 16px 1fr; gap: 2px 12px; padding: 10px 0; border-bottom: 1px solid #F6ECE5; }
+.depto li:last-child { border-bottom: 0; }
+.depto li i { width: 16px; height: 16px; border-radius: 4px; margin-top: 4px; grid-row: span 2; }
+.depto li b { font-size: 18px; }
+.depto li span { font-size: 14.5px; color: var(--apagado); }
+.depto li em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--laranja-forte); margin-left: 6px; }
+
+/* rotina */
+.rotina { background: var(--marinho); color: #fff; padding: 80px 0; }
+.rotina h2 { color: #fff; }
+.rotina .intro { color: #D5DAE8; }
+.turnos { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.turnos li { background: var(--marinho-fundo); border-radius: 18px; padding: 20px; border-top: 5px solid var(--laranja); }
+.turnos .quando { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 24px; color: var(--laranja-claro); display: block; line-height: 1.1; }
+.turnos p { margin: 8px 0 0; color: #D5DAE8; font-size: 15.5px; }
+
+/* quem decide */
+.decide { padding: 80px 0 40px; }
+.regras { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+.regra { background: #fff; border-radius: 22px; padding: 24px; border: 2px solid #F1E2D8; }
+.regra h3 { font-size: 24px; color: var(--marinho); margin-bottom: 6px; }
+.regra p { margin: 0; color: var(--apagado); }
+.regra .aprovar { display: inline-flex; gap: 8px; margin-top: 16px; }
+.regra .aprovar span { border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 700; }
+.regra .aprovar .ok { background: var(--marinho); color: #fff; }
+.regra .aprovar .nao { border: 2px solid #E5D5CA; color: var(--apagado); }
 
 /* pacotes */
 .pacotes { padding: 40px 0 80px; }
@@ -154,6 +200,12 @@ footer a { color: #fff; }
 
 @media (max-width: 900px) {
   .heroi .wrap { grid-template-columns: 1fr; gap: 40px; }
+  .placar { grid-template-columns: repeat(2, auto); }
+  .deptos { grid-template-columns: 1fr; padding-top: 24px; }
+  .deptos::after { display: none; }
+  .deptos::before { height: 100%; }
+  .depto::before { display: none; }
+  .turnos, .regras { grid-template-columns: 1fr; }
   .celular { justify-self: center; transform: none; }
   .carimbo { left: -4px; }
   .grade { grid-template-columns: 1fr; }
@@ -166,7 +218,7 @@ footer a { color: #fff; }
 <header class="top">
   <div class="wrap">
     <a class="marca" href="/planos.html" aria-label="Fechaê, página inicial"><img src="/logo.svg" alt=""><span class="wordmark" aria-hidden="true">fecha<span class="e">e<svg viewBox="0 0 48 32"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
-    <nav aria-label="Menu"><a class="some" href="#pacotes">Pacotes</a><a class="some" href="#perguntas">Dúvidas</a><a class="entrar" href="/">Entrar</a></nav>
+    <nav aria-label="Menu"><a class="some" href="#equipe">A equipe</a><a class="some" href="#pacotes">Pacotes</a><a class="some" href="#perguntas">Dúvidas</a><a class="entrar" href="/">Entrar</a></nav>
   </div>
 </header>
 
@@ -174,39 +226,95 @@ footer a { color: #fff; }
 <section class="heroi">
   <div class="wrap">
     <div>
-      <h1><span class="aspas">“Oi”</span> no WhatsApp, venda fechada no fim do dia.</h1>
-      <p class="sub">O Fechaê junta suas conversas, o funil e um atendente com IA que responde na hora, manda a tabela certa e passa para você quem está pronto para comprar.</p>
-      <div class="botoes"><a class="btn cheio" data-cta="profissional" href="#pacotes">Testar 7 dias grátis</a><a class="btn linha" href="#pacotes">Ver os pacotes</a></div>
-      <p class="miudo">Sem cartão para testar. Cancele quando quiser.</p>
-    </div>
-    <div class="celular anima" aria-label="Exemplo: o atendente com IA responde um cliente e a venda fecha">
-      <div class="cab"><span class="avatar" aria-hidden="true">C</span><div><b>Carla</b><small>veio do anúncio do Instagram</small></div></div>
-      <div class="chat">
-        <div class="bolha cli passo">Oi! Vi o anúncio. Quanto fica a instalação?</div>
-        <div class="bolha ia passo">Oi, Carla! Qual o tamanho do ambiente? Já te mando a tabela 😊<small>atendente com IA</small></div>
-        <div class="bolha cli passo">Uma sala de 20 m²</div>
-        <div class="tabela passo"><div><b>Tabela: sala até 25 m²</b><i><span>À vista</span><span>R$ 1.890</span></i><i><span>Em 6x</span><span>R$ 330</span></i></div></div>
-        <div class="bolha cli passo">Fechado! Como eu pago?</div>
+      <h1><span>Uma pessoa.</span><span>Sete funcionários.</span><span class="risco">Nenhum salário.</span></h1>
+      <p class="sub">O Fechaê é a sua equipe de IA: atende no WhatsApp de madrugada, organiza o funil, vai atrás do cliente e às 7h te manda o resumo do dia. Você só aprova.</p>
+      <div class="botoes"><a class="btn cheio" data-cta="profissional" href="#pacotes">Contratar minha equipe</a><a class="btn linha" href="#equipe">Conhecer a equipe</a></div>
+      <p class="miudo">7 dias grátis, sem cartão. Cancele quando quiser.</p>
+      <div class="placar" aria-label="Fechaê em números">
+        <div><b>1</b><span>pessoa no comando</span></div>
+        <div><b>7</b><span>funcionários de IA</span></div>
+        <div><b>24 h</b><span>atendendo</span></div>
+        <div><b>R$ 47</b><span>por mês</span></div>
       </div>
-      <div class="carimbo" role="img" aria-label="Venda fechada"><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Venda fechada</div>
+    </div>
+    <div class="celular anima" aria-label="Exemplo: o resumo do dia que chega no seu WhatsApp às 7h">
+      <div class="cab"><span class="avatar" aria-hidden="true">F</span><div><b>Fechaê</b><small>sua equipe de IA</small></div></div>
+      <div class="chat">
+        <div class="resumo passo"><p><b>☀️ Bom dia! Resumo de hoje</b></p><p>🌙 <b>Enquanto você dormia</b><br>A IA atendeu 14 conversas de madrugada</p></div>
+        <div class="resumo passo"><p>📥 <b>Últimas 24 horas</b><br>9 leads novos<br>3 vendas fechadas: R$ 4.870,00</p></div>
+        <div class="resumo passo"><p>✋ <b>Esperando você</b><br>2 clientes prontos para fechar<br>4 tarefas para hoje</p></div>
+        <div class="resumo passo"><p>📊 <b>Semana passada: o que funcionou</b><br>De onde mais veio lead: Anúncio no Instagram</p><span class="hora">07:00</span></div>
+      </div>
+      <div class="carimbo" role="img" aria-label="Seu dia já começou">☀️ 7:00</div>
+    </div>
+  </div>
+</section>
+
+<section class="equipe" id="equipe" aria-labelledby="t-equipe">
+  <div class="wrap">
+    <h2 id="t-equipe">Conheça a sua equipe.</h2>
+    <p class="intro">Cada funcionário é uma parte do Fechaê que trabalha sozinha. Tudo que chega pelos seus canais cai num lugar só, e a equipe cuida do resto.</p>
+    <div class="canais" aria-label="Canais que chegam no Fechaê"><span>WhatsApp</span><span>Instagram</span><span>Messenger</span><span>E-mail</span><span>Anúncios do Facebook e Instagram</span></div>
+    <div class="fio" aria-hidden="true"></div>
+    <div class="chefe"><b>Sua empresa</b><span>1 pessoa no comando · 7 funcionários de IA</span></div>
+    <div class="deptos">
+      <section class="depto" aria-label="Atendimento e vendas"><header><h3>Atendimento e vendas</h3><small>3 funcionários</small></header><ul>
+        <li><i style="background:#14213D"></i><b>Captação de leads</b><span>Quem chega pelo anúncio ou pelo WhatsApp vira lead no funil, com a origem anotada.</span></li>
+        <li><i style="background:#F26A1B"></i><b>Atendente</b><span>Responde na hora, de dia ou de madrugada, manda a tabela certa e volta a chamar quem sumiu.</span></li>
+        <li><i style="background:#2F6FDB"></i><b>Vendedor<em>Fecha Mais</em></b><span>Dispara campanhas no WhatsApp e no e-mail, no ritmo certo, com "sair da lista" automático.</span></li>
+      </ul></section>
+      <section class="depto" aria-label="Números"><header><h3>Números</h3><small>2 funcionários</small></header><ul>
+        <li><i style="background:#6D5BD0"></i><b>Analista de resultados</b><span>Mostra quanto entrou, quanto foi de anúncio e o lucro de verdade, por marca.</span></li>
+        <li><i style="background:#2E9E6A"></i><b>Secretário do dia</b><span>Às 7h manda no seu WhatsApp o resumo do dia; na segunda, o que funcionou na semana.</span></li>
+      </ul></section>
+      <section class="depto" aria-label="Operação"><header><h3>Operação</h3><small>2 funcionários</small></header><ul>
+        <li><i style="background:#D6457E"></i><b>Assistente pessoal<em>Fecha Mais</em></b><span>Você pede ("quem está sem tarefa?") e ele faz no CRM. Funciona até de dentro do app do Claude.</span></li>
+        <li><i style="background:#E8A317"></i><b>Tradutor<em>Fecha Tudo</em></b><span>Você escreve em português e o cliente recebe em espanhol ou inglês.</span></li>
+      </ul></section>
+    </div>
+  </div>
+</section>
+
+<section class="rotina" aria-labelledby="t-rotina">
+  <div class="wrap">
+    <h2 id="t-rotina">A rotina da equipe.</h2>
+    <p class="intro">Ninguém precisa lembrar de nada. A equipe tem horário, e trabalha nele.</p>
+    <ol class="turnos">
+      <li><span class="quando">De madrugada</span><p>O cliente chama às 2h e é atendido às 2h. A IA tira as dúvidas e manda a tabela.</p></li>
+      <li><span class="quando">Todo dia, 7h</span><p>O resumo chega no seu WhatsApp: quem respondeu, quem comprou, quem está esperando você.</p></li>
+      <li><span class="quando">O dia todo</span><p>Quem está pronto para comprar vem para você. O resto a equipe acompanha.</p></li>
+      <li><span class="quando">Toda segunda</span><p>O que funcionou na semana: de onde veio mais cliente e qual campanha teve mais resposta.</p></li>
+    </ol>
+  </div>
+</section>
+
+<section class="decide" aria-labelledby="t-decide">
+  <div class="wrap">
+    <h2 id="t-decide">Quem decide é você.</h2>
+    <p class="intro">A equipe trabalha sozinha, mas nada importante acontece sem o seu ok.</p>
+    <div class="regras">
+      <article class="regra"><h3>Campanha só sai quando você manda</h3><p>O Vendedor prepara a lista e o texto. O disparo começa quando você clica.</p><div class="aprovar" aria-hidden="true"><span class="ok">Disparar</span><span class="nao">Ainda não</span></div></article>
+      <article class="regra"><h3>Resposta difícil vira rascunho</h3><p>O Assistente escreve, você lê, ajusta se quiser e clica em Enviar.</p><div class="aprovar" aria-hidden="true"><span class="ok">Enviar</span><span class="nao">Editar</span></div></article>
+      <article class="regra"><h3>Robô novo começa desligado</h3><p>Todo atendimento automático novo nasce desligado. Você testa no simulador e liga quando gostar.</p><div class="aprovar" aria-hidden="true"><span class="ok">Ligar</span><span class="nao">Testar antes</span></div></article>
     </div>
   </div>
 </section>
 
 <section class="pacotes" id="pacotes">
   <div class="wrap">
-    <h2>Escolha o tamanho da sua operação.</h2>
-    <p class="intro">Os três pacotes têm o funil, as conversas e o atendente com IA. O que muda é o tamanho da equipe, quantos números de WhatsApp e o que vem junto. Todos começam com 7 dias grátis.</p>
+    <h2>Contrate a sua equipe.</h2>
+    <p class="intro">Todos os pacotes vêm com o Atendente, a Captação de leads, o Analista e o resumo das 7h. O que muda é quantos funcionários de IA você contrata, quantas pessoas da sua equipe usam e quantos números de WhatsApp. Todos começam com 7 dias grátis.</p>
     <div class="grade">
       <article class="pacote" data-plano="essencial">
         <h3>Fecha</h3>
-        <p class="para">Para quem atende sozinho ou em dupla.</p>
+        <p class="para">4 funcionários de IA. Para quem atende sozinho ou em dupla.</p>
         <p class="preco"><span data-preco>R$ 47</span><small>/mês</small></p>
         <ul>
           <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>2 usuários e 1 número de WhatsApp</li>
           <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Funil de vendas e conversas de WhatsApp e e-mail num lugar só</li>
           <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Atendente com IA que responde e manda a tabela certa</li>
           <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Fluxos automáticos e áudio virando texto</li>
+          <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Resumo do dia às 7h no seu WhatsApp</li>
           <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Suporte por e-mail</li>
         </ul>
         <div class="acoes"><a class="btn cheio" data-cta="essencial" href="/#/cadastro?plano=essencial">Testar o Fecha grátis</a><a class="btn texto" data-pagar="essencial" href="/#/cadastro?plano=essencial&amp;pagar=1">Assinar já</a></div>
@@ -215,7 +323,7 @@ footer a { color: #fff; }
       <article class="pacote destaque" data-plano="profissional">
         <span class="selo">Recomendado para equipes</span>
         <h3>Fecha Mais</h3>
-        <p class="para">Para a equipe que vende todo dia e quer ir atrás do cliente.</p>
+        <p class="para">6 funcionários de IA. Para quem vende todo dia e quer ir atrás do cliente.</p>
         <p class="preco"><span data-preco>R$ 97</span><small>/mês</small></p>
         <ul>
           <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Tudo do Fecha, com 5 usuários e 3 números de WhatsApp</li>
@@ -229,7 +337,7 @@ footer a { color: #fff; }
 
       <article class="pacote" data-plano="empresa">
         <h3>Fecha Tudo</h3>
-        <p class="para">Para quem vende com várias marcas ou para outros países.</p>
+        <p class="para">Os 7 funcionários de IA. Para quem vende com várias marcas ou para outros países.</p>
         <p class="preco"><span data-preco>R$ 197</span><small>/mês</small></p>
         <ul>
           <li><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M5 17 L18 28 L43 4" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>Tudo do Fecha Mais, com 15 usuários e 10 números de WhatsApp</li>
@@ -250,11 +358,13 @@ footer a { color: #fff; }
       <table>
         <thead><tr><th scope="col"><span class="sr">Recurso</span></th><th scope="col">Fecha</th><th scope="col" class="meio">Fecha Mais</th><th scope="col">Fecha Tudo</th></tr></thead>
         <tbody>
-          <tr><th scope="row">Usuários</th><td>2</td><td class="meio">5</td><td>15</td></tr>
+          <tr><th scope="row">Funcionários de IA</th><td>4</td><td class="meio">6</td><td>7</td></tr>
+          <tr><th scope="row">Pessoas da sua equipe</th><td>2</td><td class="meio">5</td><td>15</td></tr>
           <tr><th scope="row">Números de WhatsApp</th><td>1</td><td class="meio">3</td><td>10</td></tr>
           <tr><th scope="row">Funil, contatos e tarefas</th><td><span class="sim">Sim</span></td><td class="meio"><span class="sim">Sim</span></td><td><span class="sim">Sim</span></td></tr>
           <tr><th scope="row">Conversas de WhatsApp e e-mail</th><td><span class="sim">Sim</span></td><td class="meio"><span class="sim">Sim</span></td><td><span class="sim">Sim</span></td></tr>
           <tr><th scope="row">Atendente com IA e fluxos automáticos</th><td><span class="sim">Sim</span></td><td class="meio"><span class="sim">Sim</span></td><td><span class="sim">Sim</span></td></tr>
+          <tr><th scope="row">Resumo do dia às 7h no WhatsApp</th><td><span class="sim">Sim</span></td><td class="meio"><span class="sim">Sim</span></td><td><span class="sim">Sim</span></td></tr>
           <tr><th scope="row">Áudio do cliente vira texto</th><td><span class="sim">Sim</span></td><td class="meio"><span class="sim">Sim</span></td><td><span class="sim">Sim</span></td></tr>
           <tr><th scope="row">Campanhas por e-mail e WhatsApp</th><td><span class="nao">Não</span></td><td class="meio"><span class="sim">Sim</span></td><td><span class="sim">Sim</span></td></tr>
           <tr><th scope="row">Assistente e conexão com o app do Claude</th><td><span class="nao">Não</span></td><td class="meio"><span class="sim">Sim</span></td><td><span class="sim">Sim</span></td></tr>
@@ -269,7 +379,7 @@ footer a { color: #fff; }
 
 <section class="comeco" aria-labelledby="t-comeco">
   <div class="wrap">
-    <h2 id="t-comeco">Em poucos minutos você já está atendendo</h2>
+    <h2 id="t-comeco">Sua equipe começa hoje à noite</h2>
     <ol class="passos">
       <li><h3>Crie a conta</h3><p>Nome da empresa, e-mail e senha. Você entra na hora, sem cartão.</p></li>
       <li><h3>Conecte o WhatsApp</h3><p>Leia o QR code com o celular, como no WhatsApp Web. As conversas começam a chegar no funil.</p></li>
@@ -281,6 +391,7 @@ footer a { color: #fff; }
 <section class="perguntas" id="perguntas" aria-labelledby="t-perguntas">
   <div class="wrap">
     <h2 id="t-perguntas">Dúvidas</h2>
+    <details><summary>Os funcionários são pessoas de verdade?</summary><p>Não. São partes do Fechaê que trabalham sozinhas com inteligência artificial: atendem, organizam e avisam você. Quem decide, negocia e fecha é você e a sua equipe.</p></details>
     <details><summary>Preciso de cartão para testar?</summary><p>Não. São 7 dias grátis com tudo do pacote escolhido. No fim do teste, você decide se assina; se não assinar, o acesso pausa e nada é apagado.</p></details>
     <details><summary>A inteligência artificial tem custo extra?</summary><p>A IA usa a sua própria chave da Anthropic, criada em poucos minutos. Você paga direto para ela só o que usar: conversas curtas custam centavos.</p></details>
     <details><summary>O meu número de WhatsApp pode ser bloqueado?</summary><p>A conexão por QR code não é oficial do WhatsApp. Para atender quem chama, funciona bem; disparar muitas mensagens para quem não conhece você pode levar o WhatsApp a restringir o número. O Fechaê controla o ritmo das campanhas para diminuir esse risco.</p></details>
@@ -291,7 +402,7 @@ footer a { color: #fff; }
 
 <section class="chamada">
   <div class="wrap">
-    <h2>Seu próximo cliente pode chegar hoje. Esteja pronto.</h2>
+    <h2>Contrate hoje. Amanhã às 7h o resumo já chega.</h2>
     <a class="btn cheio" data-cta="profissional" href="/#/cadastro?plano=profissional">Testar 7 dias grátis</a>
   </div>
 </section>

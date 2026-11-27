@@ -56,7 +56,7 @@ test('texto traz leads, vendas, IA de madrugada e quem está esperando', async (
   in1(() => {
     const won = db.one("select s.id from stages s join leads l on l.pipeline_id = s.pipeline_id where l.id = ? and s.kind = 'won'", lead).id;
     db.run('update leads set stage_id = ?, closed_at = ? where id = ?', won, Date.now(), lead);
-    const contact = db.one('select contact_id c from leads where id = ?', lead).c;
+    const contact = db.one('select contact_id c from lead_contacts where lead_id = ?', lead).c;
     const conv = Number(db.run("insert into conversations(channel_id, contact_id, external_id, last_message_at, last_inbound_at, created_at) values(?, ?, '5567999990002', ?, ?, ?)",
       canal, contact, Date.now(), Date.now(), Date.now()).lastInsertRowid);
     db.run("insert into messages(conversation_id, direction, body, bot, created_at) values(?, 'out', 'Oi!', 1, ?)", conv, Date.now() - 1000);

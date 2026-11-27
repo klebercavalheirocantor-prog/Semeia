@@ -1364,7 +1364,7 @@ test('excluir conversa: some com as mensagens; lead não triado sai junto, lead 
 
 test('respostas prontas: padrão da AgroVox, admin edita por empresa, vendedor não edita', async () => {
   let me = (await call('admin', 'GET', '/api/me')).body;
-  assert.deepEqual(me.quick_replies.map((r) => r.title), ['Site', 'Pagamento no cartão', 'Pagamento em cripto', 'Sinais Trimble (diferença)']);
+  assert.deepEqual(me.quick_replies.map((r) => r.title), ['Site', 'Pagamento no cartão', 'Pagamento em cripto']);
   assert.match(me.quick_replies[0].es, /Conozca/);
   const r = await call('admin', 'PUT', '/api/quick-replies', [{ title: ' PIX ', pt: 'Chave PIX: contato@agro-vox.com', es: '' }, { title: 'vazia', pt: '', es: '' }]);
   assert.equal(r.status, 200);
