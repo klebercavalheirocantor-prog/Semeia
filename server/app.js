@@ -13,6 +13,7 @@ import { sendTemplateTo, sendEmail, contactFromUnsubToken, fillVars } from './ou
 import { audienceCount, campaignStats, startCampaign, pauseCampaign } from './campaigns.js';
 import { dashboard } from './dashboard.js';
 import { results, readInvestment, investmentFile, readAds, adsFile } from './results.js';
+import { capiStatus, saveCapiConfig, sendSales } from './capi.js';
 import { flowOnHuman, flowOnStage, validateGraph, simulate, portsOf } from './flows.js';
 import { claude, DEFAULT_MODEL, translateOut, translateIn } from './ai.js';
 import { transcribeMessage, groqKey } from './transcribe.js';
@@ -1424,6 +1425,17 @@ app.get('/api/results', (req, res) => {
   if (!req.user.is_admin && req.user.rights?.leads?.view !== 'all') throw httpError(403, 'Só quem vê todos os leads');
   res.json(results({ brandId: req.brand }));
 });
+// Vendas para o Facebook (API de Conversões): ID do conjunto de dados + chave de acesso, por empresa.
+app.get('/api/admin/capi', (req, res) => { admin(req); res.json(capiStatus(req.brand)); });
+app.put('/api/admin/capi', (req, res) => {
+  admin(req);
+  const { dataset_id, token } = req.body || {};
+  if (dataset_id !== undefined && dataset_id && !/^\d{8,25}$/.test(String(dataset_id).replace(/\D/g, ''))) throw httpError(400, 'ID do conjunto de dados inválido (só números)');
+  saveCapiConfig(req.brand, { dataset_id, token });
+  res.json(capiStatus(req.brand));
+});
+app.post('/api/admin/capi/send', async (req, res) => { admin(req); res.json(await sendSales(req.brand)); });
+
 // Qual criativo é cada anúncio (id do anúncio do Facebook -> { criativo, campanha }), para "Vendas por criativo".
 app.get('/api/admin/ads', (req, res) => { admin(req); res.json(readAds(accountDir(), req.brand)); });
 app.put('/api/admin/ads', (req, res) => {

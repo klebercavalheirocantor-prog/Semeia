@@ -117,6 +117,28 @@ function General() {
       <label class="field">Versão da Graph API<input value=${m.graph_version} onInput=${(e) => setM({ ...m, graph_version: e.target.value })} /></label>
     </div>
     <button class="btn primary" style="align-self:flex-start" onClick=${save}>Salvar</button>
+    <${CapiSettings} />
+  </div>`;
+}
+
+// Vendas para o Facebook: o CRM avisa cada venda fechada, e o Facebook mostra a compra no anúncio de onde o cliente veio.
+function CapiSettings() {
+  const [st, setSt] = useState(null);
+  const [f, setF] = useState({ dataset_id: '', token: '' });
+  const [busy, setBusy] = useState(false);
+  const load = () => api('/admin/capi').then((r) => { setSt(r); setF((x) => ({ ...x, dataset_id: r.dataset_id })); }).catch(() => setSt(false));
+  useEffect(load, []);
+  if (st === false) return null; // só administradores
+  const save = () => api('/admin/capi', { method: 'PUT', body: f }).then((r) => { setSt(r); setF({ ...f, token: '' }); toast('Salvo'); }).catch(fail);
+  const send = async () => { setBusy(true); try { const r = await post('/admin/capi/send'); toast(r.ok ? `${r.enviadas} ${r.enviadas === 1 ? 'venda enviada' : 'vendas enviadas'} ao Facebook` : `Não foi: ${r.erro || r.motivo}`); load(); } catch (x) { fail(x); } setBusy(false); };
+  const u = st?.ultimo;
+  return html`<div class="card pad form"><h2>Vendas para o Facebook</h2>
+    <p class="small muted">Cada lead em "Venda fechada" com valor é avisado ao Facebook (telefone embaralhado, valor e data). O Facebook mostra a compra no anúncio de onde o cliente veio. Vai sozinho a cada 15 minutos; vendas de até 62 dias atrás também entram.</p>
+    <label class="field">ID do conjunto de dados (Gerenciador de Eventos)<input inputmode="numeric" value=${f.dataset_id} onInput=${(e) => setF({ ...f, dataset_id: e.target.value })} /></label>
+    <label class="field">Chave de acesso (gerada no conjunto de dados, em Configurações › API de Conversões)<input type="password" autocomplete="new-password"
+      placeholder=${st?.has_token ? '•••••••• salva (deixe vazio para manter)' : 'Cole a chave aqui'} value=${f.token} onInput=${(e) => setF({ ...f, token: e.target.value })} /></label>
+    ${st && html`<p class="small">${st.enviadas} ${st.enviadas === 1 ? 'venda enviada' : 'vendas enviadas'} · ${st.pendentes} na fila${u ? ` · última tentativa ${new Date(u.at).toLocaleString('pt-BR')}${u.erro ? `: erro — ${u.erro}` : ''}${u.sem_contato ? ` · ${u.sem_contato} sem telefone/e-mail` : ''}` : ''}</p>`}
+    <div class="row"><button class="btn primary" onClick=${save}>Salvar</button><button class="btn" disabled=${busy || !st?.has_token} onClick=${send}>${busy ? 'Enviando…' : 'Enviar vendas agora'}</button></div>
   </div>`;
 }
 

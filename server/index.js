@@ -9,6 +9,7 @@ import { tickCampaigns } from './campaigns.js';
 import { tickFlows, initFlows } from './flows.js';
 import { bootWeb, stopAllWeb } from './waweb.js';
 import { tickMailboxes } from './mailbox.js';
+import { tickCapi } from './capi.js';
 import { tickResumo } from './resumo.js';
 import { becomeOwner, releaseOwner } from './owner.js';
 
@@ -86,6 +87,9 @@ function startJobs() {
   setInterval(() => eachAccount(tickMailboxes, 'e-mail'), 60e3);
   // Resumo do dia no WhatsApp do dono, na hora escolhida.
   setInterval(() => eachAccount(tickResumo, 'resumo do dia'), 60e3);
+  // Vendas fechadas vão para o Facebook (API de Conversões) a cada 15 min, nas empresas que configuraram.
+  setTimeout(() => eachAccount(tickCapi, 'vendas para o Facebook'), 60e3);
+  setInterval(() => eachAccount(tickCapi, 'vendas para o Facebook'), 15 * 60e3);
   eachAccount(bootWeb, 'whatsapp web'); // reconecta o WhatsApp Web que já leu o QR code
 }
 
