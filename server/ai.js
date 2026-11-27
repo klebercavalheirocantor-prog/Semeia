@@ -36,8 +36,20 @@ export async function claudeRaw({ system, messages, tools, maxTokens = 1000, bra
 }
 
 // O modelo responde só JSON; tolera texto em volta.
+// Quebra de linha ou tab "crus" dentro de um texto entre aspas deixam o JSON inválido: troca por \n / espaço
+function fixStrings(t) {
+  let out = '', str = false, esc = false;
+  for (const c of t) {
+    if (str) {
+      if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') str = false;
+      else if (c === '\n') { out += '\\n'; continue; } else if (c === '\r') continue; else if (c === '\t') { out += ' '; continue; }
+    } else if (c === '"') str = true;
+    out += c;
+  }
+  return out;
+}
 function parseJson(text) {
-  const t = String(text);
+  const t = fixStrings(String(text));
   const m = t.match(/\{[\s\S]*\}/);
   try { if (m) return JSON.parse(m[0]); } catch { /* tenta pedaço por pedaço abaixo */ }
   // Às vezes vem mais de um objeto ou texto com chaves depois: pega o primeiro objeto completo que dá para ler
