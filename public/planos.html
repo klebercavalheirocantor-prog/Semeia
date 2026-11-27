@@ -58,7 +58,8 @@ h1, h2, h3 { font-family: 'Baloo 2', system-ui, sans-serif; line-height: 1.05; m
 .btn.linha { border: 2px solid rgba(255,255,255,.4); color: #fff; }
 .btn.linha:hover { border-color: #fff; }
 .heroi .miudo { margin-top: 18px; font-size: 14px; color: #AEB7CF; }
-.placar { display: grid; grid-template-columns: repeat(4, auto); gap: 10px 28px; margin-top: 40px; justify-content: start; }
+.placar { display: flex; flex-wrap: wrap; gap: 14px 28px; margin-top: 40px; }
+.placar div { white-space: nowrap; }
 .placar div { border-left: 3px solid var(--laranja); padding-left: 12px; }
 .placar b { display: block; font-family: 'Baloo 2', sans-serif; font-size: 34px; line-height: 1; }
 .placar span { font-size: 14px; color: #AEB7CF; }
@@ -200,7 +201,6 @@ footer a { color: #fff; }
 
 @media (max-width: 900px) {
   .heroi .wrap { grid-template-columns: 1fr; gap: 40px; }
-  .placar { grid-template-columns: repeat(2, auto); }
   .deptos { grid-template-columns: 1fr; padding-top: 24px; }
   .deptos::after { display: none; }
   .deptos::before { height: 100%; }
