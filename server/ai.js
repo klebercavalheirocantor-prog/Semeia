@@ -37,8 +37,21 @@ export async function claudeRaw({ system, messages, tools, maxTokens = 1000, bra
 
 // O modelo responde só JSON; tolera texto em volta.
 function parseJson(text) {
-  const m = String(text).match(/\{[\s\S]*\}/);
-  try { return m ? JSON.parse(m[0]) : null; } catch { return null; }
+  const t = String(text);
+  const m = t.match(/\{[\s\S]*\}/);
+  try { if (m) return JSON.parse(m[0]); } catch { /* tenta pedaço por pedaço abaixo */ }
+  // Às vezes vem mais de um objeto ou texto com chaves depois: pega o primeiro objeto completo que dá para ler
+  for (let i = t.indexOf('{'); i >= 0; i = t.indexOf('{', i + 1)) {
+    let depth = 0, str = false, esc = false;
+    for (let k = i; k < t.length; k++) {
+      const c = t[k];
+      if (str) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') str = false; continue; }
+      if (c === '"') str = true;
+      else if (c === '{') depth++;
+      else if (c === '}' && --depth === 0) { try { return JSON.parse(t.slice(i, k + 1)); } catch { break; } }
+    }
+  }
+  return null;
 }
 
 function base(brandId = 1) {
@@ -124,7 +137,13 @@ ${cfg.knowledge || '(vazia)'}
 Responda APENAS com JSON: {"resposta": "texto ou vazio", "tabelas": ["nome exato"], "acao": "continuar" | "humano" | "encerrar", "motivo": "curto"}`;
   const msgs = toMessages(history.slice(-14));
   if (!msgs.length) return { reply: '', tables: [], action: 'continuar', reason: '' };
-  const j = parseJson(await claude({ system, messages: msgs, maxTokens: 400, brandId }));
+  let raw = await claude({ system, messages: msgs, maxTokens: 400, brandId });
+  let j = parseJson(raw);
+  if (!j) { // tenta mais uma vez antes de passar para um atendente
+    console.warn('IA fora do formato:', raw.slice(0, 300));
+    raw = await claude({ system: `${system}\nIMPORTANTE: sua saída inteira deve ser um único objeto JSON válido, sem nenhum texto fora dele.`, messages: msgs, maxTokens: 400, brandId });
+    j = parseJson(raw);
+  }
   if (!j) return { reply: '', tables: [], action: 'humano', reason: 'IA não respondeu no formato' };
   const names = new Set(items.map((it) => it.name));
   return {
