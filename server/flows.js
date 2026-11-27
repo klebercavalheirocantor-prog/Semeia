@@ -106,7 +106,7 @@ async function execNode(node, io) {
       const turns = (io.vars.ai_turns ||= {});
       turns[node.id] = (turns[node.id] || 0) + 1;
       const sent = io.vars.models || [];
-      const r = await aiAgent(await io.history(), { items: d.items || [], contactName: io.firstName, brandId: io.brandId, sent });
+      const r = await aiAgent(await io.history(), { items: d.items || [], contactName: io.firstName, brandId: io.brandId, sent, ad: io.vars.ad });
       const hits = (d.items || []).filter((it) => r.tables.includes(it.name) && !sent.includes(it.name)).slice(0, 2);
       if (hits.length) {
         for (const [i, h] of hits.entries()) await io.send(i === hits.length - 1 ? r.reply : '', [], h.file_id);
@@ -327,7 +327,7 @@ export function notARealReply(text) {
 }
 
 // Chamado depois de gravar a mensagem do cliente.
-export function flowOnInbound({ conversationId, text, campaignId = null, newConversation = false, optout = false, fromAd = false }) {
+export function flowOnInbound({ conversationId, text, campaignId = null, newConversation = false, optout = false, fromAd = false, ad = null }) {
   return serial(conversationId, async () => {
     const r = activeRun(conversationId);
     if (optout) {
@@ -363,7 +363,7 @@ export function flowOnInbound({ conversationId, text, campaignId = null, newConv
           const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
           if (!must.some((m) => norm(text).includes(norm(m)))) continue;
         }
-        return startRun(flow, conv, { last_reply: text, campaign_id: campaignId });
+        return startRun(flow, conv, { last_reply: text, campaign_id: campaignId, ...(ad ? { ad: { title: ad.title || '', text: String(ad.text || '').slice(0, 300) } } : {}) });
       }
     }
   });

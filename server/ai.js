@@ -128,12 +128,12 @@ Responda APENAS com JSON: {"classe": "nome_da_classe"}`;
 
 // Atendente da campanha: entende a resposta, conversa e escolhe qual TABELA (imagem) mandar. Nunca digita preço.
 // items: [{ name, keywords }]; sent: nomes das tabelas já mandadas. Devolve { reply, tables, action, reason }.
-export async function aiAgent(history, { items = [], contactName = '', brandId = 1, sent = [] } = {}) {
+export async function aiAgent(history, { items = [], contactName = '', brandId = 1, sent = [], ad = null } = {}) {
   const { cfg, persona } = base(brandId);
   const ag = perfil(brandId).agente;
   const tables = items.map((it) => `- ${it.name}${(it.keywords || []).length ? ` (o cliente pode escrever: ${it.keywords.join(', ')})` : ''}`).join('\n');
   const system = `${persona}
-${ag.contexto}
+${ag.contexto}${ad && (ad.title || ad.text) ? `\nO cliente chegou clicando no anúncio "${ad.title || ''}"${ad.text ? ` (texto: ${ad.text})` : ''}.` : ''}
 ${ag.objetivo}
 Responda no idioma em que o cliente escreveu (português, espanhol ou inglês; na dúvida, português do Brasil), como uma pessoa no WhatsApp: curto (no máximo 2 frases), simpático, sem parecer robô${contactName ? `; chame pelo primeiro nome (${contactName}) só quando soar natural` : ''}.
 Regras:

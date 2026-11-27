@@ -89,7 +89,7 @@ export function handleMessage(item) {
         and not exists (select 1 from flow_runs f where f.conversation_id = ? and f.created_at >= r.replied_at)
         and not exists (select 1 from messages m where m.conversation_id = ? and m.direction = 'out' and m.created_at >= r.replied_at)
       order by r.replied_at desc limit 1`, res.contactId, channel.brand_id, now() - REPLY_WINDOW_MS, res.conversationId, res.conversationId);
-    if (!item.noFlow) res.flow = flowOnInbound({ conversationId: res.conversationId, text: item.msg.body, campaignId: camp?.campaign_id || null, newConversation: res.newConv, optout: r === 'optout', fromAd: !!item.ad });
+    if (!item.noFlow) res.flow = flowOnInbound({ conversationId: res.conversationId, text: item.msg.body, campaignId: camp?.campaign_id || null, newConversation: res.newConv, optout: r === 'optout', fromAd: !!item.ad, ad: item.ad || null });
   }
   // Depois do commit: baixar mídia e buscar o nome do perfil, sem travar o webhook.
   if (item.msg.media) {
@@ -119,8 +119,11 @@ export function handleMessage(item) {
 export const AD_TAG = 'Veio do anúncio';
 // Contato novo que veio do anúncio é salvo como "<prefixo do perfil> <nome do perfil>" (ex.: "Agro Sinal Maria";
 // sem nome: o telefone). Empresa sem prefixo no perfil: só o nome.
-export function adContactName(name, phone, brandId = 1) {
-  const prefix = perfil(brandId).prefixoAnuncio;
+export function adContactName(name, phone, brandId = 1, ad = null) {
+  const pf = perfil(brandId);
+  // anúncio de produto com prefixo próprio (ex.: piloto FJ Dynamics -> "Agro Piloto")
+  const adText = ad ? `${ad.title || ''} ${ad.text || ''}` : '';
+  const prefix = (pf.prefixosPorAnuncio || []).find((x) => x.re.test(adText))?.prefixo || pf.prefixoAnuncio;
   const base = String(name || '').replace(/^Cliente (WhatsApp|Instagram|Messenger)$/, '').trim() || String(phone || '').replace(/@.*/, '');
   if (!prefix) return base;
   return base.toLowerCase().startsWith(prefix.toLowerCase()) ? base : `${prefix} ${base}`.trim();
@@ -129,7 +132,7 @@ function markAd(res, ad) {
   if (res.created) {
     const c = one('select name from contacts where id = ?', res.contactId);
     const conv = one('select external_id, channel_id from conversations where id = ?', res.conversationId);
-    const name = adContactName(c?.name, conv?.external_id, one('select brand_id from channels where id = ?', conv?.channel_id)?.brand_id ?? 1);
+    const name = adContactName(c?.name, conv?.external_id, one('select brand_id from channels where id = ?', conv?.channel_id)?.brand_id ?? 1, ad);
     run('update contacts set name = ? where id = ?', name, res.contactId);
     if (res.leadId) run('update leads set name = ? where id = ?', name, res.leadId);
     res.adName = name;
