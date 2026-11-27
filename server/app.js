@@ -12,7 +12,7 @@ import { handleWebhookItems } from './inbound.js';
 import { sendTemplateTo, sendEmail, contactFromUnsubToken, fillVars } from './outbound.js';
 import { audienceCount, campaignStats, startCampaign, pauseCampaign } from './campaigns.js';
 import { dashboard } from './dashboard.js';
-import { results, readInvestment, investmentFile } from './results.js';
+import { results, readInvestment, investmentFile, readAds, adsFile } from './results.js';
 import { flowOnHuman, flowOnStage, validateGraph, simulate, portsOf } from './flows.js';
 import { claude, DEFAULT_MODEL, translateOut, translateIn } from './ai.js';
 import { transcribeMessage, groqKey } from './transcribe.js';
@@ -1423,6 +1423,20 @@ app.get('/api/dashboard', (req, res) => res.json(dashboard({ days: Number(req.qu
 app.get('/api/results', (req, res) => {
   if (!req.user.is_admin && req.user.rights?.leads?.view !== 'all') throw httpError(403, 'Só quem vê todos os leads');
   res.json(results({ brandId: req.brand }));
+});
+// Qual criativo é cada anúncio (id do anúncio do Facebook -> { criativo, campanha }), para "Vendas por criativo".
+app.get('/api/admin/ads', (req, res) => { admin(req); res.json(readAds(accountDir(), req.brand)); });
+app.put('/api/admin/ads', (req, res) => {
+  admin(req);
+  const d = req.body;
+  if (!d || typeof d !== 'object' || Array.isArray(d)) throw httpError(400, 'Formato inválido: { "<id do anúncio>": { "criativo": "...", "campanha": "..." } }');
+  const clean = {};
+  for (const [id, v] of Object.entries(d)) {
+    if (!/^\d{6,25}$/.test(id) || !v || typeof v !== 'object' || !String(v.criativo || '').trim()) continue;
+    clean[id] = { criativo: String(v.criativo).trim().slice(0, 80), ...(v.campanha ? { campanha: String(v.campanha).trim().slice(0, 60) } : {}) };
+  }
+  fs.writeFileSync(path.join(accountDir(), adsFile(req.brand)), JSON.stringify(clean, null, 2));
+  res.json({ ok: true, anuncios: Object.keys(clean).length });
 });
 // Investimento dos anúncios: a tarefa diária grava aqui (logada como administrador), em vez do arquivo no PC.
 app.get('/api/admin/investment', (req, res) => { admin(req); res.json(readInvestment(accountDir(), req.brand) || {}); });

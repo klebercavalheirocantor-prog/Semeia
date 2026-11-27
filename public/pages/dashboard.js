@@ -293,9 +293,15 @@ function Resultado() {
       <table class="t"><thead><tr><th>Campanha</th><th>Gasto</th><th>Conversas</th><th>Custo por conversa</th></tr></thead><tbody>
         ${inv.campanhas.map((c) => html`<tr><td>${c.nome}</td><td>US$ ${Number(c.usd || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td>${num(c.conversas)}</td>
           <td>${c.conversas ? `US$ ${(c.usd / c.conversas).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</td></tr>`)}</tbody></table></div></div>`}
+    ${r.criativos?.length > 0 && html`<div class="card pad"><h2>Vendas por criativo</h2><div style="overflow-x:auto">
+      <table class="t"><thead><tr><th>Criativo</th><th>Campanhas</th><th>Contatos</th><th>Vendas</th><th>Vendido</th><th>Lucro bruto</th><th>Contato → venda</th></tr></thead><tbody>
+        ${r.criativos.map((c) => html`<tr><td>${c.nome}</td><td class="small">${c.campanhas.join(', ') || '—'}</td><td>${num(c.contatos)}</td><td>${num(c.vendas)}</td>
+          <td>${money(c.receita)}</td><td style=${`color:${C.ganhos}`}>${money(c.lucro)}</td><td>${c.contatos ? `${Math.round((c.vendas / c.contatos) * 100)}%` : '—'}</td></tr>`)}</tbody></table></div>
+      <p class="xs muted">Contatos = quem chegou clicando no anúncio (o CRM grava sozinho desde 20/11). Lucro bruto = vendido − custo − taxa, sem o gasto com anúncio.
+        ${r.sem_anuncio > 0 && ` ${r.sem_anuncio} ${r.sem_anuncio === 1 ? 'venda de anúncio está' : 'vendas de anúncio estão'} sem o criativo: preencha "Anúncio de origem" no cartão do lead.`}</p></div>`}
     <div class="card pad"><h2>Todas as vendas</h2><div style="overflow-x:auto">
-      <table class="t"><thead><tr><th>Data</th><th>Canal</th><th>Cliente</th><th>Produto</th><th>Valor</th><th>Taxa</th><th>Custo</th></tr></thead><tbody>
+      <table class="t"><thead><tr><th>Data</th><th>Canal</th><th>Cliente</th><th>Produto</th><th>Criativo</th><th>Valor</th><th>Taxa</th><th>Custo</th></tr></thead><tbody>
         ${r.vendas.map((v) => html`<tr><td>${new Date(v.closed_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</td><td class="small">${CH_SHORT[v.canal]}</td>
-          <td><a href=${`#/lead/${v.lead_id}`}>${v.cliente}</a></td><td class="small">${v.produto}</td><td>${money(v.valor)}</td><td>${money(v.taxa)}</td>
+          <td><a href=${`#/lead/${v.lead_id}`}>${v.cliente}</a></td><td class="small">${v.produto}</td><td class="small">${v.anuncio?.criativo || '—'}</td><td>${money(v.valor)}</td><td>${money(v.taxa)}</td>
           <td>${v.custo == null ? html`<span class="pill warn">falta</span>` : money(v.custo)}</td></tr>`)}</tbody></table></div></div>`;
 }
