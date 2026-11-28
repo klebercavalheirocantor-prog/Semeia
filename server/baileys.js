@@ -271,6 +271,16 @@ export class Client extends EventEmitter {
     for (const k of keys) for (const [j, v] of this.lastIn) if (v.id === k.id) this.lastIn.delete(j);
   }
 
+  // Apagar para todos / editar uma mensagem que nós enviamos (o WhatsApp só deixa editar texto, até 15 min).
+  async deleteMessage(chatId, id) {
+    const jid = toS(chatId);
+    await this.sock.sendMessage(jid, { delete: { remoteJid: jid, fromMe: true, id } });
+  }
+  async editMessage(chatId, id, text) {
+    const jid = toS(chatId);
+    await this.sock.sendMessage(jid, { text: String(text), edit: { remoteJid: jid, fromMe: true, id } });
+  }
+
   async typing(chatId) {
     await this.sock?.sendPresenceUpdate?.('composing', toS(chatId));
   }

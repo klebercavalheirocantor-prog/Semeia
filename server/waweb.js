@@ -265,6 +265,16 @@ export async function sendWeb(channel, to, { text = '', file, buttons } = {}) {
   return { id: m?.id?._serialized || null, wa_id: chatId.endsWith('@c.us') ? chatId.split('@')[0] : chatId };
 }
 
+// Apagar para todos ou editar (text) uma mensagem que enviamos por este número.
+export async function changeWeb(channel, conv, externalId, { text } = {}) {
+  const s = ready(channel.id);
+  const fn = text === undefined ? s.client.deleteMessage : s.client.editMessage;
+  if (!fn) throw Object.assign(new Error('Este número não permite apagar ou editar pelo CRM'), { status: 400 });
+  const chatId = await resolveNumber(channel, conv.external_id);
+  if (!chatId) throw Object.assign(new Error('Não achei a conversa no WhatsApp'), { status: 400 });
+  await fn.call(s.client, chatId, externalId, ...(text === undefined ? [] : [text]));
+}
+
 const KIND = { chat: 'text', image: 'image', video: 'video', ptt: 'audio', audio: 'audio', document: 'document', sticker: 'sticker', location: 'location' };
 const IGNORE = /@(g\.us|broadcast|newsletter)$/;
 const SYSTEM = /^(e2e_notification|notification|notification_template|gp2|protocol|ciphertext|revoked|call_log|broadcast_notification|pinned_message)$/;

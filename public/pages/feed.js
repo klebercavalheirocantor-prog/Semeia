@@ -1,4 +1,4 @@
-import { html, useState, useEffect, useRef, api, post, patch, del, fail, B, userName, money, fmtTime, fmtDay, dayKey, dueLabel, toLocalInput, endOfDay, Channel, UserSelect, Confirm, Modal } from '../lib.js';
+import { html, useState, useEffect, useRef, api, post, patch, del, fail, B, userName, money, fmtTime, fmtDay, dayKey, dueLabel, toLocalInput, endOfDay, Channel, UserSelect, Confirm, Modal, toast } from '../lib.js';
 
 const STATUS = { pending: ['🕓', 'Enviando'], sent: ['✓', 'Enviada'], delivered: ['✓✓', 'Entregue'], read: ['✓✓', 'Lida'], failed: ['⚠', 'Falhou'] };
 
@@ -116,8 +116,28 @@ export function Bubble({ m, channelId }) {
   else if (f) media = html`<a href=${f} target="_blank" rel="noopener">📎 ${m.file_name || 'arquivo'}</a>`;
   else if (m.kind !== 'text' && m.kind !== 'other' && !m.body) media = html`<span class="muted small">${m.error ? 'Mídia indisponível' : 'Baixando mídia…'}</span>`;
   const st = STATUS[m.status];
-  return html`<div class="bubble ${m.direction} ${m.status === 'failed' ? 'failed' : ''}">
-    ${media}${media && m.body ? html`<br />` : ''}${m.body}
+  // Mensagem nossa pelo WhatsApp: apagar para todos (até 2 dias) e editar texto (até 15 min), como no celular.
+  const [menu, setMenu] = useState(false);
+  const [edit, setEdit] = useState(null);
+  const [ask, setAsk] = useState(false);
+  const kind = m.channel || B().channels.find((x) => x.id === (m.channel_id ?? channelId))?.kind;
+  const age = Date.now() - m.created_at;
+  const canDel = m.direction === 'out' && kind === 'whatsapp' && m.external_id && !m.deleted_at && m.status !== 'failed' && age < 48 * 3600e3;
+  const canEdit = canDel && m.kind === 'text' && age < 15 * 60e3;
+  const saveEdit = () => patch(`/messages/${m.id}`, { text: edit }).then(() => { setEdit(null); toast('Mensagem editada'); }).catch(fail);
+  if (m.deleted_at) return html`<div class="bubble ${m.direction} apagada"><span class="muted">🚫 Você apagou esta mensagem</span>
+    <div class="meta"><span>${fmtTime(m.created_at)}</span></div></div>`;
+  return html`<div class="bubble ${m.direction} ${m.status === 'failed' ? 'failed' : ''} ${canDel ? 'has-menu' : ''}">
+    ${canDel && html`<button type="button" class="bubble-menu-btn" aria-label="Opções da mensagem" aria-expanded=${menu} onClick=${() => setMenu(!menu)}>⌄</button>`}
+    ${menu && html`<div class="bubble-menu" role="menu" onMouseLeave=${() => setMenu(false)}>
+      ${canEdit && html`<button type="button" role="menuitem" onClick=${() => { setMenu(false); setEdit(m.body); }}>✏️ Editar</button>`}
+      <button type="button" role="menuitem" class="danger" onClick=${() => { setMenu(false); setAsk(true); }}>🗑️ Apagar para todos</button></div>`}
+    ${ask && html`<${Confirm} title="Apagar para todos?" danger okLabel="Apagar" text="A mensagem some do WhatsApp do cliente e daqui. Ele verá “Mensagem apagada”."
+      onOk=${() => del(`/messages/${m.id}`).then(() => toast('Mensagem apagada'))} onClose=${() => setAsk(false)} />`}
+    ${edit !== null ? html`<div class="col" style="gap:6px;min-width:240px"><textarea rows="3" aria-label="Novo texto da mensagem" value=${edit} onInput=${(e) => setEdit(e.target.value)}></textarea>
+      <div class="row" style="justify-content:flex-end"><button type="button" class="btn sm" onClick=${() => setEdit(null)}>Cancelar</button>
+      <button type="button" class="btn sm primary" disabled=${!edit.trim()} onClick=${saveEdit}>Salvar</button></div></div>`
+    : html`${media}${media && m.body ? html`<br />` : ''}${m.body}`}
     ${m.original_body && html`<div class="small muted" style="margin-top:4px">🌐 traduzido · você escreveu: ${m.original_body}</div>`}
     ${ts && html`<div class="small tr-in">📝 ${ts}</div>`}
     ${canTs && html`<button type="button" class="link-btn small" disabled=${trBusy} onClick=${transcribe}>${trBusy ? 'Transcrevendo…' : '📝 Transcrever áudio'}</button>`}
@@ -128,6 +148,7 @@ export function Bubble({ m, channelId }) {
       ${m.kind === 'template' && html`<span>modelo ·</span>`}
       ${m.direction === 'out' && (m.user_name || userName(m.user_id)) && html`<span>${m.user_name || userName(m.user_id)} ·</span>`}
       ${m.bot ? html`<span title="Enviada pelo fluxo automático">🤖 robô ·</span>` : ''}
+      ${m.edited_at ? html`<span>editada ·</span>` : ''}
       <span>${fmtTime(m.created_at)}</span>
       ${m.direction === 'out' && st && html`<span class="tick ${m.status}" title=${st[1]}>${st[0]}<span class="sr-only">${st[1]}</span></span>`}
     </div>

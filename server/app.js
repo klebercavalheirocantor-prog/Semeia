@@ -23,7 +23,7 @@ import { toVoice } from './voice.js';
 import { config as resumoConfig, texto as resumoTexto, enviar as enviarResumo, FUSOS as RESUMO_FUSOS, local as resumoLocal } from './resumo.js';
 import { mountMcp, newLink, revokeLink, linkInfo } from './mcp.js';
 import { PLANS, TRIAL_DAYS, signupOpen, canUse, limits, billingInfo, startTrial, checkout, syncSubscription, cancel, logAccess, hasFeature, planFor, FEATURE_NAMES } from './billing.js';
-import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES, markReadWeb } from './waweb.js';
+import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES, markReadWeb, changeWeb } from './waweb.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 export const app = express();
@@ -569,7 +569,7 @@ app.post('/api/loss-reasons', (req, res) => {
 const LEAD_LIST_COLS = `l.id, l.name, l.price_cents, l.stage_id, l.pipeline_id, l.responsible_id, l.created_at, l.updated_at, l.closed_at,
   (select c.name from lead_contacts lc join contacts c on c.id = lc.contact_id where lc.lead_id = l.id order by lc.is_main desc, c.id limit 1) contact_name,
   (select min(due_at) from tasks t where t.entity = 'lead' and t.entity_id = l.id and t.done_at is null) next_task_at,
-  (select json_object('body', m.body, 'kind', m.kind, 'dir', m.direction, 'at', m.created_at) from conversations cv join messages m on m.conversation_id = cv.id where cv.lead_id = l.id order by m.created_at desc, m.id desc limit 1) last_msg,
+  (select json_object('body', case when m.deleted_at then '🚫 Mensagem apagada' else m.body end, 'kind', m.kind, 'dir', m.direction, 'at', m.created_at) from conversations cv join messages m on m.conversation_id = cv.id where cv.lead_id = l.id order by m.created_at desc, m.id desc limit 1) last_msg,
   (select coalesce(sum(unread), 0) from conversations cv where cv.lead_id = l.id) unread,
   (select ch.kind from conversations cv join channels ch on ch.id = cv.channel_id where cv.lead_id = l.id order by cv.last_message_at desc limit 1) channel,
   (select json_group_array(json_object('id', t.id, 'name', t.name, 'color', t.color)) from entity_tags et join tags t on t.id = et.tag_id where et.entity = 'lead' and et.entity_id = l.id) tags`;
@@ -1008,7 +1008,7 @@ app.get('/api/conversations', (req, res) => {
   }
   res.json(all(`select c.id, c.status, c.unread, c.last_message_at, c.last_inbound_at, c.lead_id, c.contact_id, ch.kind channel, ch.name channel_name, ct.name contact_name,
     l.name lead_name, l.stage_id, l.responsible_id,
-    (select json_object('body', m.body, 'kind', m.kind, 'dir', m.direction, 'status', m.status) from messages m where m.conversation_id = c.id order by m.created_at desc, m.id desc limit 1) last_msg
+    (select json_object('body', case when m.deleted_at then '🚫 Mensagem apagada' else m.body end, 'kind', m.kind, 'dir', m.direction, 'status', m.status) from messages m where m.conversation_id = c.id order by m.created_at desc, m.id desc limit 1) last_msg
     from conversations c join channels ch on ch.id = c.channel_id join contacts ct on ct.id = c.contact_id left join leads l on l.id = c.lead_id and l.deleted_at is null
     where ${where.join(' and ')} order by c.last_message_at desc limit 300`, ...p).map((r) => ({ ...r, last_msg: r.last_msg ? JSON.parse(r.last_msg) : null })));
 });
@@ -1047,6 +1047,41 @@ app.post('/api/messages/:id/translate', async (req, res) => {
   try { text = await translateIn(src, { brandId: brand }); } catch (e) { throw httpError(e.status === 400 ? 400 : 502, `Não consegui traduzir agora (${e.message}). Tente de novo.`); }
   run('update messages set translated_body = ? where id = ?', text, m.id);
   res.json({ text });
+});
+
+// Apagar para todos / editar uma mensagem enviada pelo WhatsApp (como no celular: editar até 15 min, apagar até 2 dias).
+const EDIT_MS = 15 * 60e3, DELETE_MS = 48 * 3600e3;
+function ownMessage(req) {
+  const m = one('select * from messages where id = ?', Number(req.params.id));
+  if (!m) throw httpError(404, 'Mensagem não encontrada');
+  const c = loadConv(req, m.conversation_id);
+  if (m.direction !== 'out' || !m.external_id || m.status === 'failed') throw httpError(400, 'Só dá para mudar mensagens que foram enviadas');
+  if (m.deleted_at) throw httpError(400, 'Esta mensagem já foi apagada');
+  if (m.user_id && m.user_id !== req.user.id && !req.user.is_admin) throw httpError(403, 'Só quem enviou (ou um administrador) pode mudar esta mensagem');
+  const ch = one('select * from channels where id = ?', c.channel_id);
+  if (ch?.kind !== 'whatsapp' || !isWeb(ch)) throw httpError(400, 'Neste canal não dá para apagar ou editar depois de enviada');
+  return { m, c, ch };
+}
+app.delete('/api/messages/:id', async (req, res) => {
+  const { m, c, ch } = ownMessage(req);
+  if (now() - m.created_at > DELETE_MS) throw httpError(400, 'O WhatsApp só deixa apagar para todos até 2 dias depois de enviar');
+  await changeWeb(ch, c, m.external_id);
+  run('update messages set deleted_at = ? where id = ?', now(), m.id);
+  logEvent('conversation', c.id, 'message_deleted', { message_id: m.id }, req.user.id);
+  emit('message', { conversation_id: c.id, lead_id: c.lead_id });
+  res.json({ ok: true });
+});
+app.patch('/api/messages/:id', async (req, res) => {
+  const { m, c, ch } = ownMessage(req);
+  const text = String(req.body?.text || '').trim();
+  if (!text) throw httpError(400, 'Escreva o novo texto');
+  if (m.kind !== 'text') throw httpError(400, 'O WhatsApp só deixa editar mensagem de texto');
+  if (now() - m.created_at > EDIT_MS) throw httpError(400, 'O WhatsApp só deixa editar até 15 minutos depois de enviar');
+  await changeWeb(ch, c, m.external_id, { text });
+  run('update messages set body = ?, original_body = null, edited_at = ? where id = ?', text, now(), m.id);
+  logEvent('conversation', c.id, 'message_edited', { message_id: m.id }, req.user.id);
+  emit('message', { conversation_id: c.id, lead_id: c.lead_id });
+  res.json({ ok: true });
 });
 
 // Transcrever um áudio recebido (os novos já vêm transcritos sozinhos; este é para os antigos ou se falhou).
