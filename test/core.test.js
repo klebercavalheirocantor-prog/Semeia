@@ -1050,7 +1050,7 @@ test('anúncio clique-para-WhatsApp: lead com origem, etiqueta e nota do anúnci
   assert.equal(one('select count(*) n from flow_runs where conversation_id = ?', conv2.id).n, 0);
 
   // anúncio do piloto vindo de número do Paraguai: "Agro Piloto PY <nome>" no CRM e na agenda do celular
-  c.emit('message', msg('595981000001@c.us', 'Hola', 'py-1', { ...AD, title: 'Piloto automático FJ Dynamics AT2' }));
+  c.emit('message', msg('595981000001@c.us', 'Hola', 'piloto-py-1', { ...AD, title: 'Piloto automático FJ Dynamics AT2' }));
   await wait(30); await flush();
   const py = one("select * from conversations where external_id = '595981000001'");
   assert.equal(one('select name from contacts where id = ?', py.contact_id).name, 'Agro Piloto PY João Produtor');
