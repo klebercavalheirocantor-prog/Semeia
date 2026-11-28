@@ -39,7 +39,9 @@ before(async () => {
   await wait(20);
   wa.emit('ready');
   await wait(10);
-  conv = Number(db.inAccount(1, () => db.run("insert into conversations(channel_id, external_id, last_message_at, created_at) values(?, '5567999990001', ?, ?)", canal, Date.now(), Date.now()).lastInsertRowid));
+  const lead = (await call('POST', '/api/leads', { name: 'Maria', contact: { name: 'Maria', phone: '67999990001' } })).body.id;
+  const contact = db.inAccount(1, () => db.one('select contact_id c from lead_contacts where lead_id = ?', lead).c);
+  conv = Number(db.inAccount(1, () => db.run("insert into conversations(channel_id, contact_id, external_id, last_message_at, created_at) values(?, ?, '5567999990001', ?, ?)", canal, contact, Date.now(), Date.now()).lastInsertRowid));
 });
 after(() => server.close());
 
