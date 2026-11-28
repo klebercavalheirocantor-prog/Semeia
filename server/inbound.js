@@ -117,25 +117,44 @@ export function handleMessage(item) {
 
 // Veio de anúncio (Facebook/Instagram): etiqueta no contato e o anúncio anotado no lead.
 export const AD_TAG = 'Veio do anúncio';
-// Contato novo que veio do anúncio é salvo como "<prefixo do perfil> <nome do perfil>" (ex.: "Agro Sinal Maria";
-// sem nome: o telefone). Empresa sem prefixo no perfil: só o nome.
-export function adContactName(name, phone, brandId = 1, ad = null) {
+// Contato novo que veio do anúncio é salvo como "<prefixo do perfil> [PY|AR] <nome do perfil>" (ex.: "Agro Sinal Maria",
+// "Agro Piloto PY Juan"; sem nome: o telefone). Empresa sem prefixo no perfil: só o nome.
+const PAISES = [['595', 'PY'], ['54', 'AR']]; // número do Brasil não leva sigla
+export const paisDoNumero = (phone) => {
+  const d = String(phone || '').replace(/@.*/, '').replace(/\D/g, '');
+  return d.length >= 10 && d.length <= 13 ? PAISES.find(([cc]) => d.startsWith(cc))?.[1] || '' : '';
+};
+// Partes do nome: "first" (prefixo + país) e "last" (nome da pessoa), como vão para a agenda do celular.
+// prefixo: força um prefixo (ex.: ao refazer a agenda de quem já está salvo como "Agro Piloto ...").
+export function adNameParts(name, phone, brandId = 1, ad = null, prefixo = null) {
   const pf = perfil(brandId);
   // anúncio de produto com prefixo próprio (ex.: piloto FJ Dynamics -> "Agro Piloto")
   const adText = ad ? `${ad.title || ''} ${ad.text || ''}` : '';
-  const prefix = (pf.prefixosPorAnuncio || []).find((x) => x.re.test(adText))?.prefixo || pf.prefixoAnuncio;
-  const base = String(name || '').replace(/^Cliente (WhatsApp|Instagram|Messenger)$/, '').trim() || String(phone || '').replace(/@.*/, '');
-  if (!prefix) return base;
-  return base.toLowerCase().startsWith(prefix.toLowerCase()) ? base : `${prefix} ${base}`.trim();
+  const prefix = prefixo || (pf.prefixosPorAnuncio || []).find((x) => x.re.test(adText))?.prefixo || pf.prefixoAnuncio;
+  let base = String(name || '').replace(/^Cliente (WhatsApp|Instagram|Messenger)$/, '').trim();
+  if (!prefix) return { first: '', last: base || String(phone || '').replace(/@.*/, '') };
+  // tira prefixo e sigla que já estejam no nome (refazer não duplica)
+  const conhecidos = [prefix, ...(pf.prefixosPorAnuncio || []).map((x) => x.prefixo), pf.prefixoAnuncio].filter(Boolean).sort((a, b) => b.length - a.length);
+  const p = conhecidos.find((x) => base.toLowerCase().startsWith(`${x.toLowerCase()} `) || base.toLowerCase() === x.toLowerCase());
+  if (p) base = base.slice(p.length).trim();
+  base = base.replace(/^(PY|AR|BR)\b\s*/, '').trim() || String(phone || '').replace(/@.*/, '');
+  const pais = pf.paisNoNome ? paisDoNumero(phone) : '';
+  return { first: [prefix, pais].filter(Boolean).join(' '), last: base };
+}
+export function adContactName(name, phone, brandId = 1, ad = null) {
+  const { first, last } = adNameParts(name, phone, brandId, ad);
+  return `${first} ${last}`.trim();
 }
 function markAd(res, ad) {
   if (res.created) {
     const c = one('select name from contacts where id = ?', res.contactId);
     const conv = one('select external_id, channel_id from conversations where id = ?', res.conversationId);
-    const name = adContactName(c?.name, conv?.external_id, one('select brand_id from channels where id = ?', conv?.channel_id)?.brand_id ?? 1, ad);
+    const parts = adNameParts(c?.name, conv?.external_id, one('select brand_id from channels where id = ?', conv?.channel_id)?.brand_id ?? 1, ad);
+    const name = `${parts.first} ${parts.last}`.trim();
     run('update contacts set name = ? where id = ?', name, res.contactId);
     if (res.leadId) run('update leads set name = ? where id = ?', name, res.leadId);
     res.adName = name;
+    res.adParts = parts;
   }
   let t = one('select id from tags where name = ?', AD_TAG);
   if (!t) t = { id: Number(run("insert into tags(name, color) values(?, '#1877f2')", AD_TAG).lastInsertRowid) };

@@ -8,7 +8,7 @@ import { subscribe, emit } from './bus.js';
 import { httpError, logEvent, setTags, getTags, setFields, getFields, setPoints, createContact, createLead, firstStage, openLeadOf, brandKey, firstPipelineOf, setOptOut } from './crm.js';
 import { verifySignature, parseWebhook, sendMessage, testChannel, saveFile, listTemplates, createTemplate, renderTemplate, templateVars, templateSupported, templateHeaderMedia } from './meta.js';
 import { parseVcf, parseCsv, importContacts } from './importer.js';
-import { handleWebhookItems } from './inbound.js';
+import { handleWebhookItems, adNameParts, AD_TAG } from './inbound.js';
 import { sendTemplateTo, sendEmail, contactFromUnsubToken, fillVars } from './outbound.js';
 import { audienceCount, campaignStats, startCampaign, pauseCampaign } from './campaigns.js';
 import { dashboard } from './dashboard.js';
@@ -23,7 +23,7 @@ import { toVoice } from './voice.js';
 import { config as resumoConfig, texto as resumoTexto, enviar as enviarResumo, FUSOS as RESUMO_FUSOS, local as resumoLocal } from './resumo.js';
 import { mountMcp, newLink, revokeLink, linkInfo } from './mcp.js';
 import { PLANS, TRIAL_DAYS, signupOpen, canUse, limits, billingInfo, startTrial, checkout, syncSubscription, cancel, logAccess, hasFeature, planFor, FEATURE_NAMES } from './billing.js';
-import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES, markReadWeb, changeWeb } from './waweb.js';
+import { isWeb, startWeb, stopWeb, webStatus, refreshStaleQr, engineOf, ENGINES, markReadWeb, changeWeb, saveAgendaWeb } from './waweb.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 export const app = express();
@@ -1047,6 +1047,36 @@ app.post('/api/messages/:id/translate', async (req, res) => {
   try { text = await translateIn(src, { brandId: brand }); } catch (e) { throw httpError(e.status === 400 ? 400 : 502, `Não consegui traduzir agora (${e.message}). Tente de novo.`); }
   run('update messages set translated_body = ? where id = ?', text, m.id);
   res.json({ text });
+});
+
+// Refaz o nome dos contatos que vieram de anúncio nos últimos dias ("Agro Piloto PY Juan") no CRM e na agenda do celular.
+app.post('/api/admin/agenda-anuncios', async (req, res) => {
+  admin(req);
+  const dias = Math.min(60, Math.max(1, Number(req.body?.dias) || 7));
+  const rows = all(`select distinct ct.id, ct.name, cv.external_id phone, cv.channel_id, cv.lead_id, ch.brand_id from contacts ct
+    join entity_tags et on et.entity = 'contact' and et.entity_id = ct.id join tags t on t.id = et.tag_id and t.name = ?
+    join conversations cv on cv.contact_id = ct.id join channels ch on ch.id = cv.channel_id
+    where ch.kind = 'whatsapp' and ct.deleted_at is null and ct.created_at >= ?`, AD_TAG, now() - dias * 864e5);
+  let renomeados = 0, agenda = 0;
+  for (const r of rows) {
+    const pf = perfil(r.brand_id);
+    const prefixo = [...(pf.prefixosPorAnuncio || []).map((x) => x.prefixo), pf.prefixoAnuncio].filter(Boolean)
+      .sort((a, b) => b.length - a.length).find((x) => r.name.toLowerCase().startsWith(x.toLowerCase()));
+    if (!prefixo) continue; // nome mudado à mão: não mexe
+    const p = adNameParts(r.name, r.phone, r.brand_id, null, prefixo);
+    const name = `${p.first} ${p.last}`.trim();
+    if (name !== r.name) {
+      run('update contacts set name = ? where id = ?', name, r.id);
+      if (r.lead_id) run('update leads set name = ? where id = ? and name = ?', name, r.lead_id, r.name);
+      renomeados++;
+    }
+    const ch = one('select * from channels where id = ?', r.channel_id);
+    if (/^\d{10,13}$/.test(r.phone || '') && isWeb(ch)) {
+      try { if (await saveAgendaWeb(ch, r.phone, p.first, p.last)) agenda++; } catch (e) { console.error('agenda', e.message); }
+    }
+  }
+  if (renomeados) emit('contact', {});
+  res.json({ contatos: rows.length, renomeados, agenda });
 });
 
 // Apagar para todos / editar uma mensagem enviada pelo WhatsApp (como no celular: editar até 15 min, apagar até 2 dias).

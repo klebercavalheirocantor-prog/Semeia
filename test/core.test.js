@@ -1049,6 +1049,22 @@ test('anúncio clique-para-WhatsApp: lead com origem, etiqueta e nota do anúnci
   assert.equal(JSON.parse(one("select data from events where entity = 'lead' and entity_id = ? and type = 'lead_added'", conv2.lead_id).data).source, 'whatsapp');
   assert.equal(one('select count(*) n from flow_runs where conversation_id = ?', conv2.id).n, 0);
 
+  // anúncio do piloto vindo de número do Paraguai: "Agro Piloto PY <nome>" no CRM e na agenda do celular
+  c.emit('message', msg('595981000001@c.us', 'Hola', 'py-1', { ...AD, title: 'Piloto automático FJ Dynamics AT2' }));
+  await wait(30); await flush();
+  const py = one("select * from conversations where external_id = '595981000001'");
+  assert.equal(one('select name from contacts where id = ?', py.contact_id).name, 'Agro Piloto PY João Produtor');
+  assert.deepEqual(c.saved.at(-1), ['595981000001', 'Agro Piloto PY', 'João Produtor', true]);
+  const { semPrefixo } = await import('../server/perfil.js');
+  assert.equal(semPrefixo('Agro Piloto PY João Produtor'), 'João Produtor');
+  // quem chegou antes com o nome sem a sigla: "refazer" corrige no CRM e salva de novo na agenda (sem duplicar)
+  run('update contacts set name = ? where id = ?', 'Agro Piloto João Produtor', py.contact_id);
+  const redo = (await call('admin', 'POST', '/api/admin/agenda-anuncios', { dias: 1 })).body;
+  assert.ok(redo.renomeados >= 1 && redo.agenda >= 1);
+  assert.equal(one('select name from contacts where id = ?', py.contact_id).name, 'Agro Piloto PY João Produtor');
+  assert.ok(c.saved.some((a) => a[0] === '595981000001' && a[1] === 'Agro Piloto PY' && a[2] === 'João Produtor'));
+  assert.equal(one('select name from contacts where id = ?', conv.contact_id).name, 'Agro Sinal João Produtor', 'número do Brasil não leva sigla');
+
   // CRM estava fechado: ao reconectar, puxa quem escreveu nesse meio tempo (grupo e mensagem velha ficam de fora)
   const chId = one("select id from channels where json_extract(config, '$.mode') = 'web'").id;
   setSetting(`waweb_seen:${chId}`, Date.now() - 3600e3);
@@ -1533,6 +1549,9 @@ test('marca de outro ramo (ex.: KC First Class ao lado da AgroVox) não herda an
   assert.doesNotMatch(perfil(id).agente.objetivo, /antena/i);
   assert.equal(adContactName('Maria Souza', '5511999990000', id), 'Maria Souza');
   assert.equal(adContactName('Maria Souza', '5511999990000', 1), 'Agro Sinal Maria Souza');
+  assert.equal(adContactName('Juan', '595981123456', 1), 'Agro Sinal PY Juan');
+  assert.equal(adContactName('Pedro', '5493512345678', 1), 'Agro Sinal AR Pedro');
+  assert.equal(adContactName('Juan', '595981123456', id), 'Juan'); // outro ramo: sem prefixo nem sigla
   const me = (await call('admin', 'GET', '/api/me', null, { 'x-brand': String(id) })).body;
   assert.equal(me.brand, id);
   assert.equal(me.ai.has_key, !!getSetting('ai', {}).api_key); // a chave da marca principal vale para a nova

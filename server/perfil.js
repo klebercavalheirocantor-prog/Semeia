@@ -78,6 +78,7 @@ Vá direto ao ponto: não explique o produto nem como funciona a não ser que o 
   conhecimentoExtra: PILOTO,
   prefixosPorAnuncio: [{ re: /fj\s*dynamics|base\s*rtk/i, prefixo: 'Agro Piloto' }],
   prefixoAnuncio: 'Agro Sinal',
+  paisNoNome: true, // número do Paraguai/Argentina leva PY/AR depois do prefixo ("Agro Piloto PY Juan")
   prefixosNome: ['agro sinal', 'agro revenda sinal', 'agro piloto', 'agro', 'atualize'],
   respostasProntas: [
     { title: 'Site', pt: 'Conheça a AgroVox: https://www.agro-vox.com 🌱', es: 'Conozca AgroVox: https://www.agro-vox.com 🌱' },
@@ -118,5 +119,5 @@ export function semPrefixo(name) {
   const n = String(name || '').trim();
   const p = [...perfil().prefixosNome].sort((a, b) => b.length - a.length)
     .find((x) => n.toLowerCase().startsWith(`${x} `));
-  return p ? n.slice(p.length).trim() : n;
+  return p ? n.slice(p.length).trim().replace(/^(PY|AR|BR)\s+/, '') : n;
 }

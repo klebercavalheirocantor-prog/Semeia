@@ -8,7 +8,6 @@ import { one, all, run, now, accountDir, accountId, inAccount, bound, getSetting
 import { emit } from './bus.js';
 import { handleMessage, handleStatus } from './inbound.js';
 import { findContactByPoint } from './crm.js';
-import { perfil } from './perfil.js';
 
 // Cada empresa tem seus números: a chave é "<empresa>:<canal>" (o canal 3 da empresa A não é o canal 3 da empresa B).
 const sessions = new Map(); // "<empresa>:<canal>" -> { acc, channelId, state, qr, me, error, client }
@@ -381,14 +380,19 @@ async function onIncoming(channelId, msg, { noFlow = false } = {}) {
   const item = channel && await toItem(channel, msg, 'in');
   if (item && noFlow) item.noFlow = true;
   const res = item && handleMessage(item);
-  // Veio do anúncio e é contato novo: salva também na agenda do celular (ex.: "Agro Sinal <nome>").
-  const prefix = perfil(channel?.brand_id ?? 1).prefixoAnuncio;
-  if (res?.adName && prefix && /^\d{10,13}$/.test(item.userId)) { // código interno (LID) não vai para a agenda
-    const s = sess(channelId);
-    const last = res.adName.slice(res.adName.toLowerCase().startsWith(prefix.toLowerCase()) ? prefix.length : 0).trim();
-    s?.client?.saveOrEditAddressbookContact?.(item.userId, prefix, last, true)
+  // Veio do anúncio e é contato novo: salva também na agenda do celular (ex.: "Agro Sinal <nome>", "Agro Piloto PY <nome>").
+  if (res?.adParts?.first && /^\d{10,13}$/.test(item.userId)) { // código interno (LID) não vai para a agenda
+    saveAgendaWeb(channel, item.userId, res.adParts.first, res.adParts.last)
       .catch((e) => console.error('whatsapp web: salvar contato na agenda', e.message));
   }
+}
+
+// Salva (ou corrige) o contato na agenda do celular deste número.
+export async function saveAgendaWeb(channel, phone, first, last) {
+  const s = sess(channel.id);
+  if (s?.state !== 'ready' || !s.client?.saveOrEditAddressbookContact) return false;
+  await s.client.saveOrEditAddressbookContact(String(phone), first, last, true);
+  return true;
 }
 
 // Só registra o que você mandou pelo celular em conversas que já estão no CRM (conversas pessoais ficam de fora).
