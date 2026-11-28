@@ -30,6 +30,16 @@ export function portsOf(node) {
   }
 }
 
+// Conversa do piloto automático (FJ Dynamics): anúncio do piloto ou 1ª mensagem pronta do anúncio do piloto.
+// Não usa só "piloto automático": o anúncio de sinal também fala do piloto do cliente.
+const PILOTO_RE = /fj\s*dynamics|base\s*rtk|saber mais sobre o piloto|sobre el piloto|comprar (um |un )?piloto/i;
+export async function isPilotoConv(io) {
+  const ad = io.vars.ad || {};
+  if (PILOTO_RE.test(`${ad.title || ''} ${ad.text || ''}`)) return true;
+  const first = (await io.history()).find((m) => m.direction === 'in');
+  return PILOTO_RE.test(first?.body || '');
+}
+
 // Tabela por modelo: acha o modelo no texto do cliente sem se importar com espaço, hífen, acento ou maiúscula
 // ("AG 25", "ag-25", "StarFire 6000", "sf6000"). Número só vale inteiro: "3000" não casa com "30000" nem com "13000".
 const squash = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -76,9 +86,12 @@ async function execNode(node, io) {
     case 'message':
       await io.send(d.text, d.buttons);
       return { port: 'next' };
-    case 'question':
-      await io.send(d.text, d.buttons);
+    case 'question': {
+      // O lembrete padrão pode ser de sinal ("manda foto da antena"); quem veio pelo anúncio do piloto recebe o texto do piloto.
+      const text = d.text_piloto && (await isPilotoConv(io)) ? d.text_piloto : d.text;
+      await io.send(text, d.buttons);
       return { wait: 'reply', ms: (Number(d.timeout_hours) || 20) * H };
+    }
     case 'wait':
       return { wait: 'time', ms: Math.max(1, Number(d.amount) || 1) * (d.unit === 'min' ? 60e3 : d.unit === 'd' ? 24 * H : H) };
     case 'ai_classify': {
